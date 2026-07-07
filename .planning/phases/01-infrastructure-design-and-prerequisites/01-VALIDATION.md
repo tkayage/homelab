@@ -1,7 +1,7 @@
 ---
 phase: 01
 slug: infrastructure-design-and-prerequisites
-status: draft
+status: complete
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-07-07
@@ -43,17 +43,17 @@ revised: 2026-07-07
 | 01-02-03 | 02 | 2 | Acceptance/rejection fixture framework established | Plan 01-02 summary self-check | ✅ green |
 | 01-03-01 | 03 | 2 | Prerequisite and evidence checklist established | Plan 01-03 summary self-check | ✅ green |
 | 01-03-02 | 03 | 2 | Ownership and trust-boundary contract established | Plan 01-03 summary self-check | ✅ green |
-| 01-04-01 | 04 | 3 | Operator records source-dated facts, exact three-guest approval, capacity policies, Zitadel observations, and access outcomes | Human-checkpoint exception; Plan 01-05 validates transferred evidence | ⬜ pending |
-| 01-05-01 | 05 | 4 | Inventory/docs contain only postgres-01, services-01, and k3s-01 as new guests and model embedded Compose services | Plan 01-05 Task 1 exact `jq` and `rg` command | ⬜ pending |
-| 01-06-01 | 06 | 5 | Validator/tests accept consolidated topology and reject legacy guests, missing services, Docker-in-LXC, and policy violations | `bash -n scripts/validate-inventory.sh && bash tests/test-inventory.sh` | ⬜ pending |
-| 01-07-01 | 07 | 6 | Resolved contract passes topology, capacity, evidence, ownership, and value-suppressing secret-material gates including the checkpoint summary | Plan 01-07 Task 1 exact command | ⬜ pending |
+| 01-04-01 | 04 | 3 | Operator records source-dated facts, exact three-guest approval, capacity policies, Zitadel observations, and access outcomes | Human-checkpoint exception; Plan 01-05 validated transferred evidence | ✅ green |
+| 01-05-01 | 05 | 4 | Inventory/docs contain only postgres-01, services-01, and k3s-01 as new guests and model embedded Compose services | Plan 01-05 Task 1 exact `jq` and `rg` command | ✅ green |
+| 01-06-01 | 06 | 5 | Validator/tests accept consolidated topology and reject legacy guests, missing services, Docker-in-LXC, and policy violations | `bash -n scripts/validate-inventory.sh && bash tests/test-inventory.sh` | ✅ green |
+| 01-07-01 | 07 | 6 | Resolved contract passes topology, capacity, evidence, ownership, and value-suppressing secret-material gates including the checkpoint summary | Plan 01-07 Task 1 exact command | ✅ green |
 
 ## Existing Test Assets and Remediation
 
-- [x] `infrastructure/inventory.json` exists; Plan 01-05 migrates its obsolete per-service guests.
-- [x] `scripts/validate-inventory.sh` exists; Plan 01-06 replaces fixed legacy topology assertions.
-- [x] `tests/test-inventory.sh` and focused fixtures exist; Plan 01-06 updates their accepted/rejected topology.
-- [x] `docs/prerequisites.md` and `docs/architecture-boundaries.md` exist; Plan 01-05 updates guest and service rows.
+- [x] `infrastructure/inventory.json` contains the Plan 01-05 consolidated three-guest contract.
+- [x] `scripts/validate-inventory.sh` enforces the Plan 01-06 consolidated topology and capacity policy.
+- [x] `tests/test-inventory.sh` and focused fixtures cover accepted and rejected topology cases.
+- [x] `docs/prerequisites.md` and `docs/architecture-boundaries.md` describe current guest and service ownership.
 
 ## Manual-Only Verification
 
