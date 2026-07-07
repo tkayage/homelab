@@ -6,7 +6,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 
 ## Phases
 
-- [ ] **Phase 1: Infrastructure Design and Prerequisites** - Lock resource, network, identity, and bootstrap contracts before provisioning.
+- [x] **Phase 1: Infrastructure Design and Prerequisites** - Lock resource, network, identity, and bootstrap contracts before provisioning. (completed 2026-07-07)
 - [ ] **Phase 2: Reproducible k3s Foundation** - Provision and rebuild the single-node disposable application cluster.
 - [ ] **Phase 3: GitOps and Secrets Bootstrap** - Establish Argo CD reconciliation, application discovery, health visibility, and rebuild-safe secrets.
 - [ ] **Phase 4: Local DNS, Proxy, and TLS** - Deliver automatic valid-TLS LAN exposure through Mikrotik, NPM, and Traefik.
@@ -29,7 +29,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   3. The platform boundary clearly assigns Kubernetes resources to Argo CD and external infrastructure to OpenTofu/configuration automation.
   4. The MS-01 resource budget retains explicit operating headroom.
 
-**Plans**: 8/9 plans executed
+**Plans**: 9/9 plans complete
 
 **Wave 1**
 
@@ -58,7 +58,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 01-08-PLAN.md
+- [x] 01-08-PLAN.md
 - [x] 01-09-PLAN.md
 
 ### Phase 2: Reproducible k3s Foundation
@@ -168,7 +168,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure Design and Prerequisites | 8/9 | In Progress|  |
+| 1. Infrastructure Design and Prerequisites | 9/9 | Complete   | 2026-07-07 |
 | 2. Reproducible k3s Foundation | 0/TBD | Not started | - |
 | 3. GitOps and Secrets Bootstrap | 0/TBD | Not started | - |
 | 4. Local DNS, Proxy, and TLS | 0/TBD | Not started | - |
