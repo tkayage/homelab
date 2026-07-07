@@ -14,3 +14,9 @@ variable "proxmox_insecure" {
   default     = true
   description = "Allow the private Proxmox CA used by this homelab."
 }
+
+variable "proxmox_ssh_private_key" {
+  type        = string
+  sensitive   = true
+  description = "Private key used only for scoped snippet upload as the Proxmox SSH user."
+}

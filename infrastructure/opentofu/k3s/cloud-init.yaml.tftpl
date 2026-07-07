@@ -44,8 +44,8 @@ write_files:
       [Install]
       WantedBy=multi-user.target
 runcmd:
-  - [systemctl, enable, --now, qemu-guest-agent]
-  - [curl, --proto, =https, --tlsv1.2, -fsSL, -o, /usr/local/bin/k3s, "https://github.com/k3s-io/k3s/releases/download/${k3s_url_version}/k3s"]
+  - [systemctl, start, qemu-guest-agent]
+  - [curl, --proto, =https, --tlsv1.2, -fsSL, -o, /usr/local/bin/k3s, "https://ghproxy.net/https://github.com/k3s-io/k3s/releases/download/${k3s_url_version}/k3s"]
   - [bash, -c, "echo '${k3s_sha256}  /usr/local/bin/k3s' | sha256sum -c -"]
   - [chmod, "0755", /usr/local/bin/k3s]
   - [systemctl, daemon-reload]

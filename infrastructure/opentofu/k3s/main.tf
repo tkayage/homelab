@@ -28,6 +28,10 @@ terraform {
 
 provider "proxmox" {
   insecure = var.proxmox_insecure
+  ssh {
+    username    = "tonny"
+    private_key = var.proxmox_ssh_private_key
+  }
 }
 
 locals {
@@ -43,11 +47,11 @@ locals {
 }
 
 resource "proxmox_download_file" "ubuntu_noble" {
-  content_type       = "iso"
+  content_type       = "import"
   datastore_id       = "local"
   node_name          = local.node_name
   url                = "https://cloud-images.ubuntu.com/releases/noble/release/ubuntu-24.04-server-cloudimg-amd64.img"
-  file_name          = "ubuntu-24.04-server-cloudimg-amd64.img"
+  file_name          = "ubuntu-24.04-server-cloudimg-amd64.qcow2"
   checksum           = "5fa5b05e5ec239858c4531485d6023b0896448c2df7c63b34f8dae6ea6051a44"
   checksum_algorithm = "sha256"
   overwrite          = false
@@ -79,6 +83,7 @@ resource "proxmox_virtual_environment_vm" "k3s" {
   vm_id           = local.vm_id
   on_boot         = true
   stop_on_destroy = true
+  scsi_hardware   = "virtio-scsi-single"
 
   agent {
     enabled = true

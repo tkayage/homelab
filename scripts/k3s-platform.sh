@@ -28,6 +28,7 @@ load_environment() {
   export PROXMOX_VE_INSECURE="${PVE_VERIFY_TLS:-false}"
   export TF_VAR_state_passphrase="$(<"$local_dir/state-passphrase")"
   export TF_VAR_ssh_public_key="$(ssh-keygen -y -f "$ssh_key")"
+  export TF_VAR_proxmox_ssh_private_key="$(<"$ssh_key")"
 }
 
 api() {
@@ -42,7 +43,7 @@ preflight() {
   tofu -chdir="$tf_dir" init -input=false >/dev/null
   tofu -chdir="$tf_dir" validate >/dev/null
   api /access/permissions | jq -e '[.data[] | has("Sys.Modify") and has("VM.Allocate") and has("VM.PowerMgmt") and has("Datastore.AllocateSpace")] | any' >/dev/null || fail "required Proxmox privileges are missing"
-  api /storage/local | jq -e '.data.content | split(",") | index("snippets") != null' >/dev/null || fail "local storage does not allow snippets"
+  api /storage/local | jq -e '.data.content | split(",") | (index("snippets") != null and index("import") != null)' >/dev/null || fail "local storage does not allow snippets and import content"
   local existing
   existing=$(api /cluster/resources?type=vm | jq -r '.data[] | select(.vmid==122) | .name')
   [[ -z "$existing" || "$existing" == k3s-01 ]] || fail "VMID 122 is occupied by an undeclared guest"
@@ -65,6 +66,10 @@ wait_ssh() {
 
 fetch_kubeconfig() {
   wait_ssh
+  if ! ssh -i "$ssh_key" -o BatchMode=yes "$ssh_user@$ssh_host" 'sudo cloud-init status --wait >/dev/null'; then
+    ssh -i "$ssh_key" -o BatchMode=yes "$ssh_user@$ssh_host" 'test -x /usr/local/bin/k3s && test -s /etc/rancher/k3s/k3s.yaml' || fail "cloud-init failed before k3s bootstrap completed"
+  fi
+  ssh -i "$ssh_key" -o BatchMode=yes "$ssh_user@$ssh_host" 'test -s /etc/rancher/k3s/k3s.yaml' || fail "k3s kubeconfig was not created by cloud-init"
   umask 077
   ssh -i "$ssh_key" -o BatchMode=yes "$ssh_user@$ssh_host" 'sudo cat /etc/rancher/k3s/k3s.yaml' |
     sed "s#https://127.0.0.1:6443#https://${ssh_host}:6443#" >"$kubeconfig"
@@ -76,7 +81,19 @@ validate_cluster() {
   fetch_kubeconfig
   export KUBECONFIG="$kubeconfig"
   kubectl wait --for=condition=Ready node/k3s-01 --timeout=300s
-  kubectl wait --for=condition=Ready pods --all -n kube-system --timeout=300s
+  for _ in $(seq 1 60); do
+    if kubectl get pods -n kube-system -o json | jq -e '
+      all(.items[]; (.status.phase == "Running" or .status.phase == "Succeeded")) and
+      all(.items[] | select(.status.phase == "Running"); all(.status.containerStatuses[]?; .ready == true))' >/dev/null; then break; fi
+    sleep 5
+  done
+  kubectl get pods -n kube-system -o json | jq -e '
+    all(.items[]; (.status.phase == "Running" or .status.phase == "Succeeded")) and
+    all(.items[] | select(.status.phase == "Running"); all(.status.containerStatuses[]?; .ready == true))' >/dev/null
+  for _ in $(seq 1 60); do
+    kubectl get deployment/traefik -n kube-system >/dev/null 2>&1 && break
+    sleep 5
+  done
   kubectl rollout status deployment/traefik -n kube-system --timeout=300s
   [[ $(kubectl get node k3s-01 -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}') == "$ssh_host" ]]
   [[ $(kubectl get pvc -A --no-headers 2>/dev/null | awk '$1 != "kube-system" {count++} END {print count+0}') == 0 ]]
