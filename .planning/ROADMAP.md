@@ -107,7 +107,9 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   4. Websocket, large-request, and forwarded-client-header smoke tests pass through both proxy layers.
   5. If NPM wildcard proxying is unsuitable, a tested per-app automation fallback provides equivalent behavior.
 
-**Plans**: TBD
+**Plans**: 1 plan
+
+- [ ] 04-01-PLAN.md
 
 ### Phase 5: Shared Stateful Services
 
@@ -175,7 +177,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 | 1. Infrastructure Design and Prerequisites | 9/9 | Complete    | 2026-07-07 |
 | 2. Reproducible k3s Foundation | 1/1 | Complete    | 2026-07-07 |
 | 3. GitOps and Secrets Bootstrap | 1/1 | Complete | 2026-07-07 |
-| 4. Local DNS, Proxy, and TLS | 0/TBD | Not started | - |
+| 4. Local DNS, Proxy, and TLS | 0/1 | Planned | - |
 | 5. Shared Stateful Services | 0/TBD | Not started | - |
 | 6. Build Pipeline and Project Scaffolding | 0/TBD | Not started | - |
 | 7. Opt-in Public Exposure | 0/TBD | Not started | - |
