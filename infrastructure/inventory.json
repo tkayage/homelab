@@ -17,7 +17,7 @@
     },
     "network": {
       "bridge": {"value": "vmbr0", "status": "verified", "validation": "Bridge matched the existing LAN guest network.", "source": "Proxmox network observation, 2026-07-07"},
-      "vlan": {"value": null, "status": "blocked", "validation": "Confirm tagged VLAN ID or explicitly verify the LAN is untagged before provisioning.", "source": "Proxmox and Mikrotik configuration"},
+      "vlan": {"value": "untagged", "status": "verified", "validation": "The active vmbr0 bridge has no VLAN tag and bridge VLAN awareness is unset, confirming untagged LAN attachment.", "source": "Proxmox read-only network API observation, 2026-07-07"},
       "subnet": {"value": "10.10.30.0/24", "status": "verified", "validation": "Subnet matched Proxmox and RouterOS observations.", "source": "Proxmox and RouterOS observation, 2026-07-07"},
       "gateway": {"value": "10.10.30.1", "status": "verified", "validation": "Gateway was read from RouterOS address state.", "source": "RouterOS observation, 2026-07-07"},
       "dns_suffix": {"value": "app.kayage.co", "status": "verified", "validation": "Operator approved the platform application suffix.", "source": "operator approval, 2026-07-07"},

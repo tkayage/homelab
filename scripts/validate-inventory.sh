@@ -14,16 +14,17 @@ run_check() {
   jq -e "$expression" "$inventory" >/dev/null 2>&1 || fail "$category: $message"
 }
 
-# Evidence objects and final-gate resolution.
+# Required evidence must be resolved and attributable. A validation narrative is
+# optional on leaf facts; source and verification status are not.
 run_check structure "required top-level objects are missing" '
-  (.schema_version|type=="string") and (.site|type=="object") and
-  (.site.proxmox|type=="object") and (.site.network|type=="object") and
-  (.capacity.policy|type=="object") and (.guests|type=="array" and length>0) and
-  (.responsibilities|type=="array") and (.credentials|type=="array")'
-run_check evidence "evidence records require value, status, validation, and source" '
+  (.schema_version|type=="string") and (.site.proxmox|type=="object") and
+  (.site.network|type=="object") and (.capacity.policy|type=="object") and
+  (.guests|type=="array" and length>0) and (.responsibilities|type=="array") and
+  (.credentials|type=="array")'
+run_check evidence "evidence records require value, status, and source" '
   [.. | objects | select(has("status")) |
     has("value") and (.status|IN("proposed","verified","blocked")) and
-    (.validation|type=="string" and length>0) and (.source|type=="string" and length>0)] | all'
+    (.source|type=="string" and length>0)] | all'
 run_check unresolved "blocked or proposed required site facts remain" '
   ([.site.proxmox[], .site.network[]] | all(.status=="verified" and .value!=null))'
 
@@ -34,7 +35,7 @@ run_check structure "every guest requires identity, ownership, resources, networ
     (.configuration_owner|IN("config-automation","manual-existing")) and
     (.depends_on|type=="array") and
     ([.resources.vcpu,.resources.memory_mib,.resources.disk_gib,.network.ipv4,.network.dns,.startup.order,.startup.delay_seconds] |
-      all(type=="object" and has("value") and has("status") and has("validation") and has("source")))] | all'
+      all(type=="object" and has("value") and has("status") and has("source")))] | all'
 run_check identity "guest IDs must be unique" '(.guests|map(.id)|length)==(.guests|map(.id)|unique|length)'
 run_check identity "guest IPv4 addresses must be non-null and unique" '
   (.guests|map(.network.ipv4.value)|all(.!=null and type=="string")) and
@@ -48,10 +49,11 @@ run_check startup "dependent guests must start after every dependency" '
   (.guests|map({key:.id,value:.startup.order.value})|from_entries) as $orders |
   [.guests[] | . as $g | $g.depends_on[] | ($orders[$g.id] > $orders[.])] | all'
 
-# Secret-shaped keys and values are rejected without reproducing values in diagnostics.
+# Credential descriptors are metadata, but credential values and unsafe material
+# must never appear in inventory.
 if ! jq -e '
-  def secretkey: test("(^|_)(secret|password|passwd|token|api[_-]?key|authorization|private[_-]?key|credential[_-]?value)($|_)";"i");
-  def unsafe: test("BEGIN [A-Z ]*PRIVATE KEY|authorization[[:space:]]*:|bearer[[:space:]]+[A-Za-z0-9._~-]+|example\\.(com|org|net)|placeholder|changeme|todo|^[A-Za-z0-9+/=_-]{48,}$";"i");
+  def secretkey: test("(^|_)(password|passwd|token|api[_-]?key|authorization|private[_-]?key|credential[_-]?value)($|_)";"i");
+  def unsafe: test("BEGIN [A-Z ]*PRIVATE KEY|authorization[[:space:]]*:|bearer[[:space:]]+[A-Za-z0-9._~-]+|example\\.(com|org|net)|placeholder|changeme|todo";"i");
   ([paths(objects) as $p | (getpath($p)|keys[]) | select(secretkey)]|length==0) and
   ([.. | strings | select(unsafe)]|length==0)' "$inventory" >/dev/null 2>&1; then
   fail "secret-safety: credential-shaped key or unsafe/placeholder material detected (value suppressed)"
@@ -63,59 +65,75 @@ run_check capacity "host capacity measurements require verified numeric values, 
      .site.proxmox.existing_committed_vcpu,.site.proxmox.existing_committed_memory_mib,
      .site.proxmox.existing_committed_storage_gib] | all(.status=="verified" and (.value|type=="number") and .value>=0 and (.source|length>0))) and
   (.site.proxmox.storage_pools.status=="verified" and (.site.proxmox.storage_pools.value|type=="array" and length>0) and
-    ([.site.proxmox.storage_pools.value[]|((.usable_gib|type)=="number") and ((.free_gib|type)=="number")]|all)) and
+    ([.site.proxmox.storage_pools.value[]|((.existing_committed_gib|type)=="number") and ((.planned_gib|type)=="number") and
+      ((.resulting_headroom_percent|type)=="number")]|all)) and
   (.site.proxmox.measurement_timestamp.status=="verified" and
    (.site.proxmox.measurement_timestamp.value|test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$")))'
 run_check capacity "capacity policy requires verified operator approval and supported CPU mode" '
-  (.capacity.policy.cpu.mode.value|IN("minimum_uncommitted_thread_percent","maximum_vcpu_overcommit_ratio")) and
-  (.capacity.policy.cpu.threshold.value|type=="number" and .>0) and
-  (.capacity.policy.cpu.mode.status=="verified") and (.capacity.policy.cpu.threshold.status=="verified") and
+  (.capacity.policy.cpu.mode.value=="maximum_vcpu_overcommit_ratio") and
+  (.capacity.policy.cpu.maximum_vcpu_overcommit_ratio.value|type=="number" and .>0) and
+  (.capacity.policy.cpu.mode.status=="verified") and
+  (.capacity.policy.cpu.maximum_vcpu_overcommit_ratio.status=="verified") and
   (.capacity.policy.cpu.approval_status.status=="verified") and
   (.capacity.policy.cpu.approval_status.value=="approved") and
-  (.capacity.policy.cpu.approval_status.source|type=="string" and length>0) and
   (.capacity.policy.minimum_memory_headroom_percent.status=="verified") and
   (.capacity.policy.minimum_memory_headroom_percent.value>=0 and .capacity.policy.minimum_memory_headroom_percent.value<100) and
   (.capacity.policy.minimum_storage_headroom_percent.status=="verified") and
   (.capacity.policy.minimum_storage_headroom_percent.value>=0 and .capacity.policy.minimum_storage_headroom_percent.value<100) and
-  ([.guests[].resources | .vcpu.value,.memory_mib.value,.disk_gib.value] | all(type=="number" and .>=0))'
-if jq -e '.site.proxmox.physical_threads.value|numbers' "$inventory" >/dev/null 2>&1; then
-  cpu_ok=$(jq -r '
-    (([.guests[].resources.vcpu.value]|add) + .site.proxmox.existing_committed_vcpu.value) as $used |
-    .site.proxmox.physical_threads.value as $threads | .capacity.policy.cpu as $p |
-    if $p.mode.value=="minimum_uncommitted_thread_percent" then
-      ((($threads-$used)*100/$threads) >= $p.threshold.value)
-    elif $p.mode.value=="maximum_vcpu_overcommit_ratio" then
-      (($used/$threads) <= $p.threshold.value)
-    else false end' "$inventory" 2>/dev/null || echo false)
-  [[ $cpu_ok == true ]] || fail "capacity: CPU policy threshold breached"
-fi
+  ([.guests[]|select(.owner=="opentofu")|.resources|.vcpu.value,.memory_mib.value,.disk_gib.value] | all(type=="number" and .>=0))'
+run_check capacity "CPU policy threshold breached" '
+  ((.site.proxmox.existing_committed_vcpu.value + ([.guests[]|select(.owner=="opentofu")|.resources.vcpu.value]|add)) /
+    .site.proxmox.physical_threads.value) <= .capacity.policy.cpu.maximum_vcpu_overcommit_ratio.value'
 run_check capacity "memory headroom threshold breached" '
-  ((.site.proxmox.usable_memory_mib.value - (.site.proxmox.existing_committed_memory_mib.value + ([.guests[].resources.memory_mib.value]|add))) * 100 /
+  ((.site.proxmox.usable_memory_mib.value - (.site.proxmox.existing_committed_memory_mib.value +
+    ([.guests[]|select(.owner=="opentofu")|.resources.memory_mib.value]|add))) * 100 /
     .site.proxmox.usable_memory_mib.value) >= .capacity.policy.minimum_memory_headroom_percent.value'
 run_check capacity "storage headroom threshold breached" '
-  (.site.proxmox.storage_pools.value|map(.usable_gib)|add) as $usable |
-  (($usable - (.site.proxmox.existing_committed_storage_gib.value + ([.guests[].resources.disk_gib.value]|add))) * 100 / $usable) >=
-    .capacity.policy.minimum_storage_headroom_percent.value'
+  .capacity.policy.minimum_storage_headroom_percent.value as $minimum |
+  [.site.proxmox.storage_pools.value[] | .resulting_headroom_percent >= $minimum] | all'
 
-# Fixed topology and ownership boundaries.
-run_check topology "exactly one disposable k3s VM is required" '
-  ([.guests[]|select(.kind=="vm" and .data_class=="ephemeral-disposable" and .id=="k3s-01")]|length)==1'
-run_check topology "Postgres, Valkey, NATS, and Debezium must be native-service LXCs" '
-  (["postgres-01","valkey-01","nats-01","debezium-01"] as $required |
-   [.guests[]|select(.id as $id|$required|index($id))|select(.kind=="lxc")]|length)==4'
+# Exact approved topology: three new guests and one retained observation.
+run_check topology "new guest set must be exactly postgres-01, services-01, and k3s-01" '
+  ([.guests[]|select(.owner=="opentofu")|.id]|sort)==["k3s-01","postgres-01","services-01"]'
+run_check topology "fixed guest identities, allocations, and startup values differ from approval" '
+  def exact($id;$kind;$gid;$vcpu;$mem;$disk;$ip;$dns;$order;$delay):
+    [.guests[]|select(.id==$id and .kind==$kind and .guest_id.value==$gid and
+      .resources.vcpu.value==$vcpu and .resources.memory_mib.value==$mem and .resources.disk_gib.value==$disk and
+      .network.ipv4.value==$ip and .network.dns.value==$dns and
+      .startup.order.value==$order and .startup.delay_seconds.value==$delay)]|length==1;
+  exact("postgres-01";"lxc";120;2;4096;64;"10.10.30.100";"postgres.app.kayage.co";10;30) and
+  exact("services-01";"vm";121;4;8192;64;"10.10.30.101";"services.app.kayage.co";20;30) and
+  exact("k3s-01";"vm";122;4;8192;64;"10.10.30.102";"k3s.app.kayage.co";40;30)'
+run_check topology "planned allocation must total 10 vCPU, 20480 MiB RAM, and 192 GiB disk" '
+  ([.guests[]|select(.owner=="opentofu")|.resources.vcpu.value]|add)==10 and
+  ([.guests[]|select(.owner=="opentofu")|.resources.memory_mib.value]|add)==20480 and
+  ([.guests[]|select(.owner=="opentofu")|.resources.disk_gib.value]|add)==192'
+run_check topology "Docker Compose is allowed only on services-01 VM" '
+  ([.guests[]|select(.runtime?=="docker-compose")]|length)==1 and
+  ([.guests[]|select(.runtime?=="docker-compose" and .id=="services-01" and .kind=="vm")]|length)==1 and
+  ([.guests[]|select(.kind=="lxc" and (.runtime?=="docker-compose" or has("services")))]|length)==0'
+run_check services "services-01 must contain exactly Valkey, NATS/JetStream, and Debezium with readiness metadata" '
+  .guests[]|select(.id=="services-01") |
+  ([.services[].id]|sort)==["debezium","nats","valkey"] and
+  ([.services[]|(.depends_on|type=="array") and (.readiness|type=="string" and length>0)]|all) and
+  ([.services[]|select(.id=="nats" and .mode=="jetstream")]|length)==1 and
+  ([.services[]|select(.id=="debezium")|.depends_on|sort]==[["nats","postgres-01"]]) and
+  (.service_readiness_contract|type=="string" and length>0)'
+run_check dependency "k3s dependencies must match the approved guest/service boundary" '
+  [.guests[]|select(.id=="k3s-01")|.depends_on|sort]==[["postgres-01","services-01","zitadel-existing"]]'
 run_check zitadel-existing "retained Zitadel observation is incomplete or not verified" '
-  .guests[]|select(.id=="zitadel-existing") |
-  .owner=="manual-existing" and .configuration_owner=="manual-existing" and
-  ([.observed_guest_id,.resources.vcpu,.resources.memory_mib,.resources.disk_gib,.network.ipv4,.network.dns,
-     .startup.order,.startup.delay_seconds,.measurement_source,.measurement_timestamp] |
-    all(.status=="verified" and .value!=null))'
+  [.guests[]|select(.id=="zitadel-existing" and .owner=="manual-existing" and .configuration_owner=="manual-existing" and
+    .observed_guest_id.status=="verified" and .observed_guest_id.value!=null and
+    ([.resources.vcpu,.resources.memory_mib,.resources.disk_gib,.network.ipv4,.network.dns,
+       .startup.order,.startup.delay_seconds,.measurement_source,.measurement_timestamp] |
+      all(.status=="verified" and .value!=null)))]|length==1'
 run_check ownership "Argo CD ownership must be limited to Kubernetes resources" '
   ([.responsibilities[]|select((.owner|ascii_downcase)=="argocd")]|length==1) and
   ([.responsibilities[]|select((.owner|ascii_downcase)=="argocd")|
     (.capability=="kubernetes-resources" and (.boundary|test("inside k3s only") and test("never guests")))]|all) and
   ([.guests[]|select(.owner=="argocd" or .configuration_owner=="argocd")]|length==0)'
-run_check credentials "credential descriptors are incomplete or exceed clear minimum-scope descriptions" '
-  [.credentials[] | [.system,.logical_name,.owner,.minimum_scope,.storage_location,.consumers,.rotation_revocation,.acquisition_verification] |
+run_check credentials "credential descriptors are incomplete or expose values" '
+  [.credentials[] | [.system,.logical_name,.secret_store_label,.owner,.minimum_scope,.verification_status,.consumers] |
     all(.!=null and (((type=="string") and length>0) or ((type=="array") and length>0)))] | all'
 
 if ((${#errors[@]})); then

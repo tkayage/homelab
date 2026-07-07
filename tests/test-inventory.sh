@@ -5,55 +5,52 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-# Resolve a safe acceptance inventory from the canonical contract in temporary data.
-jq '
-  def verify: .status="verified";
-  (.site.proxmox[] |= verify) | (.site.network[] |= verify) |
-  .site.proxmox.version.value="8.4" | .site.proxmox.node.value="MS-01" |
-  .site.proxmox.physical_cores.value=32 | .site.proxmox.physical_threads.value=64 |
-  .site.proxmox.usable_memory_mib.value=131072 |
-  .site.proxmox.storage_pools.value=[{"name":"local-zfs","usable_gib":2000,"free_gib":1800}] |
-  .site.proxmox.existing_committed_vcpu.value=0 |
-  .site.proxmox.existing_committed_memory_mib.value=0 |
-  .site.proxmox.existing_committed_storage_gib.value=0 |
-  .site.proxmox.measurement_timestamp.value="2026-07-07T12:00:00Z" |
-  .site.network.bridge.value="vmbr0" | .site.network.vlan.value="untagged" |
-  .site.network.subnet.value="10.10.0.0/24" | .site.network.gateway.value="10.10.0.1" |
-  .site.network.dns_suffix.value="home.arpa" |
-  .site.network.dhcp_exclusion_static_range.value="10.10.0.10-10.10.0.99" |
-  .site.network.npm_identity.value="npm.home.arpa (10.10.0.5)" |
-  (.capacity.policy.cpu[] |= verify) | .capacity.policy.cpu.approval_status.value="approved" |
-  (.capacity.policy.minimum_memory_headroom_percent |= verify) |
-  (.capacity.policy.minimum_storage_headroom_percent |= verify) |
-  .guests |= (to_entries | map(.key as $k | .value |
-    .network.ipv4.value=("10.10.0."+(($k+10)|tostring)) |
-    .network.dns.value=(.id+".home.arpa"))) |
-  (.guests[] | .resources[], .network[], .startup[]) |= (.status="verified") |
-  (.guests[] | select(.id=="zitadel-existing")) |= (
-    .observed_guest_id.value=105 | .observed_guest_id.status="verified" |
-    .resources.vcpu.value=2 | .resources.memory_mib.value=4096 | .resources.disk_gib.value=32 |
-    .startup.order.value=5 | .startup.delay_seconds.value=30 |
-    .measurement_source.value="Proxmox read-only inventory" | .measurement_source.status="verified" |
-    .measurement_timestamp.value="2026-07-07T12:00:00Z" | .measurement_timestamp.status="verified")
-' "$root/infrastructure/inventory.json" >"$tmp/valid.json"
-
+cp "$root/infrastructure/inventory.json" "$tmp/valid.json"
 "$root/scripts/validate-inventory.sh" "$tmp/valid.json" >/dev/null
 
-assert_rejected() {
-  local fixture=$1 category=$2
-  if "$root/scripts/validate-inventory.sh" "$root/tests/fixtures/$fixture" >"$tmp/out" 2>&1; then
-    echo "FAIL: $fixture was accepted" >&2
-    exit 1
+assert_mutation_rejected() {
+  local fixture=$1 category=$2 filter
+  filter=$(jq -er '.filter' "$root/tests/fixtures/$fixture")
+  jq "$filter" "$tmp/valid.json" >"$tmp/invalid.json"
+  if "$root/scripts/validate-inventory.sh" "$tmp/invalid.json" >"$tmp/out" 2>&1; then
+    echo "FAIL: $fixture was accepted" >&2; exit 1
   fi
-  if ! grep -qi "$category" "$tmp/out"; then
+  grep -qi "$category" "$tmp/out" || {
     echo "FAIL: $fixture did not report diagnostic category $category" >&2
-    exit 1
-  fi
+    cat "$tmp/out" >&2; exit 1
+  }
 }
 
-assert_rejected invalid-duplicate-ip.json identity
-assert_rejected invalid-secret-field.json secret-safety
-assert_rejected invalid-capacity.json capacity
-assert_rejected invalid-unresolved.json zitadel-existing
+assert_inline_rejected() {
+  local name=$1 category=$2 filter=$3
+  jq "$filter" "$tmp/valid.json" >"$tmp/invalid.json"
+  if "$root/scripts/validate-inventory.sh" "$tmp/invalid.json" >"$tmp/out" 2>&1; then
+    echo "FAIL: $name was accepted" >&2; exit 1
+  fi
+  grep -qi "$category" "$tmp/out" || {
+    echo "FAIL: $name did not report diagnostic category $category" >&2
+    cat "$tmp/out" >&2; exit 1
+  }
+}
+
+assert_mutation_rejected invalid-duplicate-ip.json identity
+assert_mutation_rejected invalid-secret-field.json secret-safety
+assert_mutation_rejected invalid-capacity.json capacity
+assert_mutation_rejected invalid-unresolved.json unresolved
+
+assert_inline_rejected legacy-per-service-guest topology \
+  '.guests += [{"id":"valkey-01","kind":"lxc","owner":"opentofu","configuration_owner":"config-automation","depends_on":[],"resources":.guests[0].resources,"network":.guests[0].network,"startup":.guests[0].startup}]'
+assert_inline_rejected missing-compose-service services \
+  '(.guests[]|select(.id=="services-01")|.services) |= map(select(.id!="nats"))'
+assert_inline_rejected docker-in-lxc topology \
+  '(.guests[]|select(.id=="services-01")|.kind)="lxc"'
+assert_inline_rejected wrong-fixed-allocation topology \
+  '(.guests[]|select(.id=="services-01")|.resources.memory_mib.value)=4096'
+assert_inline_rejected broken-guest-dependency dependency \
+  '(.guests[]|select(.id=="k3s-01")|.depends_on)+=["missing-guest"]'
+assert_inline_rejected broken-compose-dependency services \
+  '(.guests[]|select(.id=="services-01")|.services[]|select(.id=="debezium")|.depends_on)=["postgres-01"]'
+assert_inline_rejected missing-compose-readiness services \
+  'del(.guests[]|select(.id=="services-01")|.services[]|select(.id=="valkey")|.readiness)'
 
 echo "Inventory validator tests passed"
