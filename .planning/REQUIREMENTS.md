@@ -15,12 +15,12 @@
 
 ### GitOps and Images
 
-- [ ] **GITOPS-01**: Argo CD reconciles the platform repository automatically.
-- [ ] **GITOPS-02**: Adding an app directory automatically registers and deploys the application.
+- [x] **GITOPS-01**: Argo CD reconciles the platform repository automatically.
+- [x] **GITOPS-02**: Adding an app directory automatically registers and deploys the application.
 - [ ] **GITOPS-03**: Application repositories build and publish versioned images to GHCR on push.
 - [ ] **GITOPS-04**: CI updates the GitOps image reference and triggers deployment without manual cluster commands.
-- [ ] **GITOPS-05**: Secrets remain encrypted in git and recoverable after cluster replacement.
-- [ ] **GITOPS-06**: Operator can inspect deployment health and roll back through git revert.
+- [x] **GITOPS-05**: Secrets remain encrypted in git and recoverable after cluster replacement.
+- [x] **GITOPS-06**: Operator can inspect deployment health and roll back through git revert.
 
 ### Local Exposure
 
@@ -101,12 +101,12 @@
 | INFRA-02 | Phase 2 | Complete |
 | INFRA-03 | Phase 1 | Complete |
 | INFRA-04 | Phase 2 | Complete |
-| GITOPS-01 | Phase 3 | Pending |
-| GITOPS-02 | Phase 3 | Pending |
+| GITOPS-01 | Phase 3 | Complete |
+| GITOPS-02 | Phase 3 | Complete |
 | GITOPS-03 | Phase 6 | Pending |
 | GITOPS-04 | Phase 6 | Pending |
-| GITOPS-05 | Phase 3 | Pending |
-| GITOPS-06 | Phase 3 | Pending |
+| GITOPS-05 | Phase 3 | Complete |
+| GITOPS-06 | Phase 3 | Complete |
 | EDGE-01 | Phase 4 | Pending |
 | EDGE-02 | Phase 4 | Pending |
 | EDGE-03 | Phase 4 | Pending |
