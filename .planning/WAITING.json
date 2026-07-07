@@ -1,10 +1,10 @@
 {
   "status": "waiting",
-  "type": "human-action",
-  "question": "Grant Sys.Modify to the Proxmox automation token and enable snippets content on local storage",
+  "type": "decision",
+  "question": "Cloud-init snippet upload requires Proxmox-node SSH; grant host SSH or approve guest SSH bootstrap alternative",
   "options": [
-    "Update the existing token role and local storage content types, then reply retry"
+    "Grant root SSH for existing key fingerprint SHA256:KQdIEGp2cRtnAE/yOmKKYsu+G/587tBSBIXemhLFjds; or approve post-provision guest SSH bootstrap"
   ],
-  "since": "2026-07-07T16:09:13.661Z",
+  "since": "2026-07-07T16:21:24.966Z",
   "phase": "02"
 }
