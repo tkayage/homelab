@@ -55,11 +55,29 @@ apply_services() {
 }
 
 deploy_services() {
-  exit 0
+  load_environment
+  
+  ssh -i "$ssh_key" -o StrictHostKeyChecking=accept-new "${ssh_user}@${ssh_host}" "mkdir -p /opt/homelab/services/debezium"
+  scp -i "$ssh_key" -o StrictHostKeyChecking=accept-new -r "$root/infrastructure/services/"* "${ssh_user}@${ssh_host}:/opt/homelab/services/"
+  
+  ssh -i "$ssh_key" -o StrictHostKeyChecking=accept-new "${ssh_user}@${ssh_host}" "test -f /opt/homelab/services/.env" || fail "/opt/homelab/services/.env does not exist on remote host"
+  
+  ssh -i "$ssh_key" -o StrictHostKeyChecking=accept-new "${ssh_user}@${ssh_host}" "cd /opt/homelab/services && sudo docker compose up -d"
 }
 
 validate_services() {
-  exit 0
+  load_environment
+
+  local running_count
+  running_count=$(ssh -i "$ssh_key" -o StrictHostKeyChecking=accept-new "${ssh_user}@${ssh_host}" "cd /opt/homelab/services && sudo docker compose ps --status running --format json" | grep -c '"State": "running"' || true)
+  
+  if [[ "$running_count" -lt 3 ]]; then
+    fail "Not all Docker containers are running on remote host"
+  fi
+  
+  ssh -i "$ssh_key" -o StrictHostKeyChecking=accept-new "${ssh_user}@${ssh_host}" "sudo docker exec \$(sudo docker compose -f /opt/homelab/services/docker-compose.yaml ps -q valkey) valkey-cli ping | grep -q PONG" || fail "Valkey is not healthy"
+  
+  printf 'Services are healthy\n'
 }
 
 destroy_services() {
