@@ -1,0 +1,22 @@
+# OpenTofu runtime and sensitive artifacts
+**/.terraform/
+**/.terraform.lock.hcl.backup
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/crash.log
+**/crash.*.log
+**/*.auto.tfvars
+!**/*.auto.tfvars.example
+
+# Generated cluster access and bootstrap material
+.local/
+**/kubeconfig*
+**/*.private
+**/*.key
+**/downloaded-images/
+
+# Local environment overrides
+.env
+.env.*
+!.env.example
