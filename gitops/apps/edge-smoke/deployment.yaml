@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-smoke
+  labels:
+    app.kubernetes.io/name: edge-smoke
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: edge-smoke
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: edge-smoke
+    spec:
+      containers:
+        - name: echo
+          image: node:22.17.0-alpine
+          command: [node, /app/server.js]
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 24Mi
+            limits:
+              cpu: 200m
+              memory: 96Mi
+          volumeMounts:
+            - name: code
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: code
+          configMap:
+            name: edge-smoke-code

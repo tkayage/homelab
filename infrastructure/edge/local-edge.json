@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "owner": "homelab-platform-local-edge",
+  "dns": {
+    "suffix": "app.kayage.co",
+    "wildcard": "*.app.kayage.co",
+    "routeros_regexp": "^.+\\.app\\.kayage\\.co$",
+    "target_ipv4": "10.10.30.237",
+    "ttl": "5m"
+  },
+  "tls": {
+    "provider": "letsencrypt",
+    "challenge": "cloudflare-dns-01",
+    "domains": ["*.app.kayage.co"],
+    "minimum_valid_days": 21
+  },
+  "proxy": {
+    "forward_scheme": "http",
+    "forward_host": "10.10.30.102",
+    "forward_port": 80,
+    "force_ssl": true,
+    "http2": true,
+    "websockets": true,
+    "max_body_mib": 16
+  },
+  "smoke_hostname": "edge-smoke.app.kayage.co"
+}
