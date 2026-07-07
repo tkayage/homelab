@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0.0",
+  "environment": "homelab-production",
+  "topology": {
+    "proxmox_hosts": 1,
+    "physical_host": "MS-01",
+    "boundary": "local-first"
+  },
+  "site": {
+    "proxmox": {
+      "version": {"value": null, "status": "blocked", "validation": "Run pveversion on MS-01 and record the installed Proxmox VE version.", "source": "operator measurement"},
+      "node": {"value": null, "status": "blocked", "validation": "Run hostname on the Proxmox node and match it to the cluster node name.", "source": "operator measurement"},
+      "physical_cores": {"value": null, "status": "blocked", "validation": "Read physical core count from lscpu on MS-01.", "source": "operator measurement"},
+      "physical_threads": {"value": null, "status": "blocked", "validation": "Read online CPU count from lscpu on MS-01.", "source": "operator measurement"},
+      "usable_memory_mib": {"value": null, "status": "blocked", "validation": "Record Proxmox host usable memory in MiB after host reservation.", "source": "operator measurement"},
+      "storage_pools": {"value": null, "status": "blocked", "validation": "Export pvesm status and record every pool used by platform guests with usable and free GiB.", "source": "operator measurement"},
+      "existing_committed_vcpu": {"value": null, "status": "blocked", "validation": "Sum configured vCPUs for all existing Proxmox guests.", "source": "operator measurement"},
+      "existing_committed_memory_mib": {"value": null, "status": "blocked", "validation": "Sum configured memory MiB for all existing Proxmox guests.", "source": "operator measurement"},
+      "existing_committed_storage_gib": {"value": null, "status": "blocked", "validation": "Sum allocated disk GiB on the selected platform datastore for existing guests.", "source": "operator measurement"},
+      "measurement_timestamp": {"value": null, "status": "blocked", "validation": "Record an RFC 3339 timestamp when all host capacity facts are measured.", "source": "operator measurement"}
+    },
+    "network": {
+      "bridge": {"value": null, "status": "blocked", "validation": "Confirm the Proxmox bridge attached to the LAN.", "source": "Proxmox network configuration"},
+      "vlan": {"value": null, "status": "blocked", "validation": "Confirm the platform VLAN ID or explicitly verify that the LAN is untagged.", "source": "Proxmox and Mikrotik configuration"},
+      "subnet": {"value": null, "status": "blocked", "validation": "Record the LAN subnet in CIDR form from Mikrotik.", "source": "Mikrotik configuration"},
+      "gateway": {"value": null, "status": "blocked", "validation": "Record the LAN gateway IPv4 from Mikrotik.", "source": "Mikrotik configuration"},
+      "dns_suffix": {"value": null, "status": "blocked", "validation": "Confirm the DNS suffix used for homelab application and service names.", "source": "Mikrotik and Cloudflare configuration"},
+      "dhcp_exclusion_static_range": {"value": null, "status": "blocked", "validation": "Reserve and collision-check a static IPv4 range outside dynamic DHCP leases.", "source": "Mikrotik configuration"},
+      "npm_identity": {"value": null, "status": "blocked", "validation": "Record and resolve the stable LAN DNS name and IPv4 of Nginx Proxy Manager.", "source": "Mikrotik DNS and NPM host configuration"}
+    }
+  },
+  "capacity": {
+    "policy": {
+      "cpu": {
+        "mode": {"value": "minimum_uncommitted_thread_percent", "status": "proposed", "validation": "Operator must approve this CPU accounting mode before provisioning.", "source": "Phase 1 planning decision"},
+        "threshold": {"value": 20, "status": "proposed", "validation": "Operator must approve a minimum of 20 percent physical threads left uncommitted.", "source": "Phase 1 planning decision"},
+        "accounting_basis": {"value": "existing committed vCPU plus proposed vCPU compared with measured physical threads", "status": "proposed", "validation": "Confirm all guests are included and measurements are current.", "source": "Phase 1 capacity policy"},
+        "approval_status": {"value": "pending-operator-approval", "status": "proposed", "validation": "Operator records approval after reviewing measured capacity and workload contention risk.", "source": "operator approval"},
+        "rationale": {"value": "Retain measurable CPU scheduling headroom on the single physical host.", "status": "proposed", "validation": "Operator confirms the reserve is appropriate for MS-01 workloads.", "source": "Phase 1 capacity policy"}
+      },
+      "minimum_memory_headroom_percent": {"value": 20, "status": "proposed", "validation": "Operator must approve at least 20 percent of usable RAM remaining unallocated.", "source": "Phase 1 research"},
+      "minimum_storage_headroom_percent": {"value": 20, "status": "proposed", "validation": "Operator must approve at least 20 percent of usable datastore capacity remaining unallocated.", "source": "Phase 1 research"}
+    }
+  },
+  "guests": [],
+  "responsibilities": [],
+  "credentials": []
+}
