@@ -231,7 +231,9 @@ These examples are project-specific policy proposals and are therefore `[ASSUMED
 | A4 | Proposed startup orders reflect service dependencies. | Architecture Pattern 4 | Restart recovery could be delayed or services could start before dependencies. |
 | A5 | Status metadata and listed policy checks are sufficient phase gates. | Patterns/Pitfalls | Missing validation could allow unsafe inputs downstream. |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+These questions are resolved by the execution plan rather than by substituting assumptions during research. Plan 01-04 blocks for operator-supplied, non-secret evidence covering the site facts, platform identity range, and credential storage descriptors below. Plan 01-05 transfers only evidenced answers into the canonical inventory and requires the complete automated policy gate to pass before Phase 1 can complete. Any unanswered item remains `blocked`; it cannot be treated as a verified fact or silently deferred past this phase.
 
 1. **What are the measured host and Proxmox facts?**
    - What we know: The target is one MS-01 running Proxmox. [VERIFIED: project context]
