@@ -65,8 +65,11 @@ run_check capacity "host capacity measurements require verified numeric values, 
      .site.proxmox.existing_committed_vcpu,.site.proxmox.existing_committed_memory_mib,
      .site.proxmox.existing_committed_storage_gib] | all(.status=="verified" and (.value|type=="number") and .value>=0 and (.source|length>0))) and
   (.site.proxmox.storage_pools.status=="verified" and (.site.proxmox.storage_pools.value|type=="array" and length>0) and
-    ([.site.proxmox.storage_pools.value[]|((.existing_committed_gib|type)=="number") and ((.planned_gib|type)=="number") and
-      ((.resulting_headroom_percent|type)=="number")]|all)) and
+    ([.site.proxmox.storage_pools.value[]|((.total_gib|type)=="number" and .total_gib>0) and
+      ((.existing_committed_gib|type)=="number" and .existing_committed_gib>=0) and
+      ((.planned_gib|type)=="number" and .planned_gib>=0) and
+      ((.resulting_headroom_percent|type)=="number") and
+      (.existing_committed_gib + .planned_gib <= .total_gib)]|all)) and
   (.site.proxmox.measurement_timestamp.status=="verified" and
    (.site.proxmox.measurement_timestamp.value|test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$")))'
 run_check capacity "capacity policy requires verified operator approval and supported CPU mode" '
@@ -90,7 +93,17 @@ run_check capacity "memory headroom threshold breached" '
     .site.proxmox.usable_memory_mib.value) >= .capacity.policy.minimum_memory_headroom_percent.value'
 run_check capacity "storage headroom threshold breached" '
   .capacity.policy.minimum_storage_headroom_percent.value as $minimum |
-  [.site.proxmox.storage_pools.value[] | .resulting_headroom_percent >= $minimum] | all'
+  [.site.proxmox.storage_pools.value[] |
+    ((.total_gib - .existing_committed_gib - .planned_gib) * 100 / .total_gib) >= $minimum] | all'
+run_check capacity "recorded storage headroom is inconsistent with measured capacity" '
+  [.site.proxmox.storage_pools.value[] |
+    (((.total_gib - .existing_committed_gib - .planned_gib) * 100 / .total_gib) - .resulting_headroom_percent) |
+      (if . < 0 then -. else . end) <= 0.1] | all'
+run_check capacity "storage pool commitments differ from canonical totals" '
+  ([.site.proxmox.storage_pools.value[].existing_committed_gib] | add) ==
+    .site.proxmox.existing_committed_storage_gib.value and
+  ([.site.proxmox.storage_pools.value[].planned_gib] | add) ==
+    ([.guests[] | select(.owner=="opentofu") | .resources.disk_gib.value] | add)'
 
 # Exact approved topology: three new guests and one retained observation.
 run_check topology "new guest set must be exactly postgres-01, services-01, and k3s-01" '

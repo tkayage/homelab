@@ -52,5 +52,11 @@ assert_inline_rejected broken-compose-dependency services \
   '(.guests[]|select(.id=="services-01")|.services[]|select(.id=="debezium")|.depends_on)=["postgres-01"]'
 assert_inline_rejected missing-compose-readiness services \
   'del(.guests[]|select(.id=="services-01")|.services[]|select(.id=="valkey")|.readiness)'
+assert_inline_rejected storage-claim-inconsistent capacity \
+  '(.site.proxmox.storage_pools.value[0].resulting_headroom_percent) += 1'
+assert_inline_rejected storage-derived-breach capacity \
+  '(.site.proxmox.storage_pools.value[0].total_gib) = 600'
+assert_inline_rejected storage-missing-measured-total capacity \
+  'del(.site.proxmox.storage_pools.value[0].total_gib)'
 
 echo "Inventory validator tests passed"
