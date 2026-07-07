@@ -24,9 +24,9 @@ The operator approved the guest sizes above, a maximum vCPU/thread ratio of 2.5,
 |---|---|---|
 | CPU | 32 existing vCPU + 10 planned vCPU; 20 physical threads | 2.1 ratio; passes maximum 2.5 |
 | Memory | 52736 MiB existing + 20480 MiB planned; 96290.6 MiB host memory | approximately 23.9% remains; passes minimum 20% |
-| Storage (`local-lvm`) | 323.15 GiB existing + 192 GiB planned | approximately 69.9% remains; passes minimum 20% |
+| Storage (`local-lvm`) | 1710.01 GiB measured usable capacity; 323.15 GiB existing + 192 GiB planned | approximately 69.9% remains; passes minimum 20% |
 
-Capacity evidence came from a read-only Proxmox guest, node, and storage inventory recheck. Resource totals for the three planned guests are 10 vCPU, 20480 MiB memory, and 192 GiB disk.
+Capacity evidence came from read-only Proxmox guest, node, and storage-status API observations. Resource totals for the three planned guests are 10 vCPU, 20480 MiB memory, and 192 GiB disk.
 
 ## Site and network evidence
 
@@ -69,4 +69,4 @@ These checks prove the read paths used to gather evidence. Later mutation phases
 
 ## Completion gate
 
-The three-guest topology, capacity policies, verified untagged LAN attachment, Plan 01-06 topology validator, and Plan 01-07 final gate have passed their recorded checks. Storage-headroom derivation remains pending until Plan 01-08 records measured usable pool capacity and validates the resulting arithmetic; Phase 1 must then be re-verified. All Phase 1 activity remains observational and documentation-only: no guest, network, or existing service was provisioned or mutated.
+The three-guest topology, capacity policies, verified untagged LAN attachment, Plan 01-06 topology validator, Plan 01-07 final gate, and Plan 01-08 measured storage-headroom derivation have passed their recorded checks. All deterministic Phase 1 gates pass; Phase 1 must now be re-verified. All Phase 1 activity remains observational and documentation-only: no guest, network, or existing service was provisioned or mutated.
