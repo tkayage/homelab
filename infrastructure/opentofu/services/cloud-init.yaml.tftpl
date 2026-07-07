@@ -1,0 +1,25 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${dns_name}
+manage_etc_hosts: true
+ssh_pwauth: false
+disable_root: true
+users:
+  - default
+  - name: ubuntu
+    groups: [adm, sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+packages:
+  - ca-certificates
+  - curl
+  - qemu-guest-agent
+  - nfs-common
+runcmd:
+  - [systemctl, start, qemu-guest-agent]
+  - [bash, -c, "curl -fsSL https://get.docker.com | sh"]
+  - [usermod, -aG, docker, ubuntu]
+  - [systemctl, enable, docker]
+final_message: "services bootstrap complete"
