@@ -26,7 +26,7 @@ Push to git → app is live at `myapp.yourdomain.com` with valid TLS, no manual 
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Phase 1 infrastructure contract defines explicit guest allocations, measured operating headroom, verified prerequisites, and automation ownership boundaries. — Validated in Phase 1: Infrastructure Design and Prerequisites
 
 ### Active
 
@@ -81,9 +81,9 @@ Push to git → app is live at `myapp.yourdomain.com` with valid TLS, no manual 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | GitOps (ArgoCD/Flux) over CLI or CI-push deploys | Git as source of truth; scaffold once, every push deploys | — Pending |
-| Apps in k3s, state outside k3s | Cluster stays disposable; rebuilding k3s never risks data | — Pending |
-| Dedicated Postgres LXC; shared Compose VM for Valkey, Debezium, and NATS | Isolate the durable database while consolidating supporting services without Docker-in-LXC | — Pending |
-| Docker only in a dedicated VM, never Docker-in-LXC | Avoids nesting/AppArmor quirks while retaining Compose operational simplicity | — Pending |
+| Apps in k3s, state outside k3s | Cluster stays disposable; rebuilding k3s never risks data | Validated in Phase 1 |
+| Dedicated Postgres LXC; shared Compose VM for Valkey, Debezium, and NATS | Isolate the durable database while consolidating supporting services without Docker-in-LXC | Validated in Phase 1 |
+| Docker only in a dedicated VM, never Docker-in-LXC | Avoids nesting/AppArmor quirks while retaining Compose operational simplicity | Validated in Phase 1 |
 | GHCR for container images | Free, zero infra to run, integrates with git hosting | — Pending |
 | Single k3s VM on the one MS-01 | Multi-VM on one host = complexity without real redundancy | — Pending |
 | Split DNS: Mikrotik static entries for LAN, Cloudflare for public | Local apps resolve locally, no hostname leakage; public opt-in via AWS Mikrotik | — Pending |
@@ -107,4 +107,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-07 after starting milestone v1.0*
+*Last updated: 2026-07-07 after completing Phase 1 infrastructure design and prerequisites*
