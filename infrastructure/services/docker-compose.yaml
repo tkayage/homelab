@@ -1,0 +1,72 @@
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: >
+      valkey-server
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --save 900 1
+      --save 300 10
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  nats:
+    image: nats:2-alpine
+    command: ["-c", "/etc/nats/nats.conf"]
+    ports:
+      - "4222:4222"   # Client
+      - "8222:8222"   # HTTP monitoring
+    volumes:
+      - ./nats.conf:/etc/nats/nats.conf:ro
+      - nats-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+          cpus: "1.5"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  debezium:
+    image: quay.io/debezium/server:3.0
+    volumes:
+      - ./debezium/application.properties:/debezium/conf/application.properties:ro
+      - debezium-data:/debezium/data
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+          cpus: "1.0"
+    depends_on:
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/q/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  valkey-data:
+  nats-data:
+  debezium-data:
