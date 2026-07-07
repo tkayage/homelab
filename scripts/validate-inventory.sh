@@ -68,11 +68,16 @@ run_check capacity "host capacity measurements require verified numeric values, 
    (.site.proxmox.measurement_timestamp.value|test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$")))'
 run_check capacity "capacity policy requires verified operator approval and supported CPU mode" '
   (.capacity.policy.cpu.mode.value|IN("minimum_uncommitted_thread_percent","maximum_vcpu_overcommit_ratio")) and
+  (.capacity.policy.cpu.threshold.value|type=="number" and .>0) and
   (.capacity.policy.cpu.mode.status=="verified") and (.capacity.policy.cpu.threshold.status=="verified") and
   (.capacity.policy.cpu.approval_status.status=="verified") and
   (.capacity.policy.cpu.approval_status.value=="approved") and
+  (.capacity.policy.cpu.approval_status.source|type=="string" and length>0) and
   (.capacity.policy.minimum_memory_headroom_percent.status=="verified") and
-  (.capacity.policy.minimum_storage_headroom_percent.status=="verified")'
+  (.capacity.policy.minimum_memory_headroom_percent.value>=0 and .capacity.policy.minimum_memory_headroom_percent.value<100) and
+  (.capacity.policy.minimum_storage_headroom_percent.status=="verified") and
+  (.capacity.policy.minimum_storage_headroom_percent.value>=0 and .capacity.policy.minimum_storage_headroom_percent.value<100) and
+  ([.guests[].resources | .vcpu.value,.memory_mib.value,.disk_gib.value] | all(type=="number" and .>=0))'
 if jq -e '.site.proxmox.physical_threads.value|numbers' "$inventory" >/dev/null 2>&1; then
   cpu_ok=$(jq -r '
     ([.guests[].resources.vcpu.value]|add) + .site.proxmox.existing_committed_vcpu.value as $used |
