@@ -1,0 +1,10 @@
+{
+  "status": "waiting",
+  "type": "human-action",
+  "question": "Grant Sys.Modify to the Proxmox automation token and enable snippets content on local storage",
+  "options": [
+    "Update the existing token role and local storage content types, then reply retry"
+  ],
+  "since": "2026-07-07T16:09:13.661Z",
+  "phase": "02"
+}
