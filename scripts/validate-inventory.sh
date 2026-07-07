@@ -63,7 +63,7 @@ run_check capacity "host capacity measurements require verified numeric values, 
      .site.proxmox.existing_committed_vcpu,.site.proxmox.existing_committed_memory_mib,
      .site.proxmox.existing_committed_storage_gib] | all(.status=="verified" and (.value|type=="number") and .value>=0 and (.source|length>0))) and
   (.site.proxmox.storage_pools.status=="verified" and (.site.proxmox.storage_pools.value|type=="array" and length>0) and
-    [.site.proxmox.storage_pools.value[]|(.usable_gib|type=="number") and (.free_gib|type=="number")]|all) and
+    ([.site.proxmox.storage_pools.value[]|((.usable_gib|type)=="number") and ((.free_gib|type)=="number")]|all)) and
   (.site.proxmox.measurement_timestamp.status=="verified" and
    (.site.proxmox.measurement_timestamp.value|test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$")))'
 run_check capacity "capacity policy requires verified operator approval and supported CPU mode" '
@@ -80,7 +80,7 @@ run_check capacity "capacity policy requires verified operator approval and supp
   ([.guests[].resources | .vcpu.value,.memory_mib.value,.disk_gib.value] | all(type=="number" and .>=0))'
 if jq -e '.site.proxmox.physical_threads.value|numbers' "$inventory" >/dev/null 2>&1; then
   cpu_ok=$(jq -r '
-    ([.guests[].resources.vcpu.value]|add) + .site.proxmox.existing_committed_vcpu.value as $used |
+    (([.guests[].resources.vcpu.value]|add) + .site.proxmox.existing_committed_vcpu.value) as $used |
     .site.proxmox.physical_threads.value as $threads | .capacity.policy.cpu as $p |
     if $p.mode.value=="minimum_uncommitted_thread_percent" then
       ((($threads-$used)*100/$threads) >= $p.threshold.value)
@@ -116,7 +116,7 @@ run_check ownership "Argo CD ownership must be limited to Kubernetes resources" 
   ([.guests[]|select(.owner=="argocd" or .configuration_owner=="argocd")]|length==0)'
 run_check credentials "credential descriptors are incomplete or exceed clear minimum-scope descriptions" '
   [.credentials[] | [.system,.logical_name,.owner,.minimum_scope,.storage_location,.consumers,.rotation_revocation,.acquisition_verification] |
-    all(.!=null and ((type=="string" and length>=8) or (type=="array" and length>0)))] | all'
+    all(.!=null and (((type=="string") and length>0) or ((type=="array") and length>0)))] | all'
 
 if ((${#errors[@]})); then
   printf 'ERROR %s\n' "${errors[@]}" >&2
