@@ -8,6 +8,20 @@ A reusable deployment platform and workflow for a personal homelab. Apps are bui
 
 Push to git → app is live at `myapp.yourdomain.com` with valid TLS, no manual wiring. Deployment must be a zero-touch, repeatable step for every new project.
 
+## Current Milestone: v1.0 End-to-End Homelab Deployment
+
+**Goal:** A git push builds and publishes an app image, deploys it to k3s through GitOps, and exposes it at a valid-TLS hostname without manual wiring.
+
+**Target features:**
+- Provision a single-node k3s VM on the Proxmox MS-01
+- Deploy GitOps and integrate GHCR image builds and pulls
+- Provision Postgres, Valkey/Redis, Debezium, and NATS shared-service LXCs
+- Integrate the existing Zitadel LXC and LAN-accessible shared services
+- Automate local DNS, Nginx Proxy Manager routing, and Cloudflare DNS-01 TLS
+- Support explicit opt-in public exposure through the AWS Mikrotik
+- Provide reusable per-project deployment scaffolding
+- Deploy one real application through the complete pipeline
+
 ## Requirements
 
 ### Validated
@@ -93,4 +107,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-07 after initialization*
+*Last updated: 2026-07-07 after starting milestone v1.0*
