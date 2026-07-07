@@ -9,7 +9,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 - [x] **Phase 1: Infrastructure Design and Prerequisites** - Lock resource, network, identity, and bootstrap contracts before provisioning. (completed 2026-07-07)
 - [x] **Phase 2: Reproducible k3s Foundation** - Provision and rebuild the single-node disposable application cluster. (completed 2026-07-07)
 - [x] **Phase 3: GitOps and Secrets Bootstrap** - Establish Argo CD reconciliation, application discovery, health visibility, and rebuild-safe secrets. (completed 2026-07-07)
-- [ ] **Phase 4: Local DNS, Proxy, and TLS** - Deliver automatic valid-TLS LAN exposure through Mikrotik, NPM, and Traefik.
+- [x] **Phase 4: Local DNS, Proxy, and TLS** - Deliver automatic valid-TLS LAN exposure through Mikrotik, NPM, and Traefik. (completed 2026-07-07)
 - [ ] **Phase 5: Shared Stateful Services** - Provision and integrate native Postgres, Valkey, NATS, Debezium, and existing Zitadel services.
 - [ ] **Phase 6: Build Pipeline and Project Scaffolding** - Turn one command and a git push into a deployed private image.
 - [ ] **Phase 7: Opt-in Public Exposure** - Add explicit, default-deny public routing through Cloudflare and the AWS Mikrotik.
@@ -109,7 +109,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 
 **Plans**: 1 plan
 
-- [ ] 04-01-PLAN.md
+- [x] 04-01-PLAN.md
 
 ### Phase 5: Shared Stateful Services
 
@@ -177,7 +177,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 | 1. Infrastructure Design and Prerequisites | 9/9 | Complete    | 2026-07-07 |
 | 2. Reproducible k3s Foundation | 1/1 | Complete    | 2026-07-07 |
 | 3. GitOps and Secrets Bootstrap | 1/1 | Complete | 2026-07-07 |
-| 4. Local DNS, Proxy, and TLS | 0/1 | Planned | - |
+| 4. Local DNS, Proxy, and TLS | 1/1 | Complete | 2026-07-07 |
 | 5. Shared Stateful Services | 0/TBD | Not started | - |
 | 6. Build Pipeline and Project Scaffolding | 0/TBD | Not started | - |
 | 7. Opt-in Public Exposure | 0/TBD | Not started | - |

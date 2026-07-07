@@ -24,11 +24,11 @@
 
 ### Local Exposure
 
-- [ ] **EDGE-01**: Local clients resolve application hostnames to NPM through Mikrotik DNS.
-- [ ] **EDGE-02**: NPM terminates valid TLS using a Cloudflare DNS-01 wildcard certificate.
-- [ ] **EDGE-03**: NPM and Traefik route each hostname to the correct application.
-- [ ] **EDGE-04**: Exposure supports websockets, large requests, and correct forwarded headers.
-- [ ] **EDGE-05**: Adding or removing an application requires no manual DNS, proxy, or certificate wiring.
+- [x] **EDGE-01**: Local clients resolve application hostnames to NPM through Mikrotik DNS.
+- [x] **EDGE-02**: NPM terminates valid TLS using a Cloudflare DNS-01 wildcard certificate.
+- [x] **EDGE-03**: NPM and Traefik route each hostname to the correct application.
+- [x] **EDGE-04**: Exposure supports websockets, large requests, and correct forwarded headers.
+- [x] **EDGE-05**: Adding or removing an application requires no manual DNS, proxy, or certificate wiring.
 
 ### Shared Services
 
@@ -107,11 +107,11 @@
 | GITOPS-04 | Phase 6 | Pending |
 | GITOPS-05 | Phase 3 | Complete |
 | GITOPS-06 | Phase 3 | Complete |
-| EDGE-01 | Phase 4 | Pending |
-| EDGE-02 | Phase 4 | Pending |
-| EDGE-03 | Phase 4 | Pending |
-| EDGE-04 | Phase 4 | Pending |
-| EDGE-05 | Phase 4 | Pending |
+| EDGE-01 | Phase 4 | Complete |
+| EDGE-02 | Phase 4 | Complete |
+| EDGE-03 | Phase 4 | Complete |
+| EDGE-04 | Phase 4 | Complete |
+| EDGE-05 | Phase 4 | Complete |
 | SERV-01 | Phase 5 | Pending |
 | SERV-02 | Phase 5 | Pending |
 | SERV-03 | Phase 5 | Pending |

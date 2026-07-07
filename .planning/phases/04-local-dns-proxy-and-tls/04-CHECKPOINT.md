@@ -1,8 +1,8 @@
 ---
 phase: 04-local-dns-proxy-and-tls
 plan: 01
-status: blocked
-updated: 2026-07-07T18:01:00Z
+status: resolved
+updated: 2026-07-07T18:16:00Z
 ---
 
 # Phase 4 Permission Checkpoint
@@ -20,9 +20,9 @@ updated: 2026-07-07T18:01:00Z
 - NPM user `homelab` now has `proxy_hosts=manage` and `certificates=manage`.
 - The Cloudflare token is active and can read `kayage.co`, but creating the `_acme-challenge.app.kayage.co` TXT record returns HTTP 403 / Cloudflare code 10000. It lacks effective Zone DNS Edit access.
 
-## Required operator action
+## Resolution
 
-Grant the token in `/home/tonny/.config/homelab/cloudflare.env` **Zone → DNS → Edit** and **Zone → Zone → Read**, restricted to `kayage.co`. Replace the token value in that file if a new token is created.
+RouterOS, NPM, and Cloudflare permissions were elevated. Apply completed with managed IDs `*1E/11/4`, the Git-only hostname lifecycle passed with stable IDs, and all 19 live checks passed.
 
 ## Resume command
 
@@ -30,4 +30,4 @@ Grant the token in `/home/tonny/.config/homelab/cloudflare.env` **Zone → DNS �
 bash scripts/local-edge.sh apply
 ```
 
-After apply succeeds, continue with `prove-zero-touch` and the live suite. No persistent RouterOS, NPM, or Cloudflare edge mutation occurred before this checkpoint.
+No unauthorized mutation occurred before the permissions were corrected.
