@@ -29,7 +29,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   3. The platform boundary clearly assigns Kubernetes resources to Argo CD and external infrastructure to OpenTofu/configuration automation.
   4. The MS-01 resource budget retains explicit operating headroom.
 
-**Plans**: 7/9 plans executed
+**Plans**: 8/9 plans executed
 
 **Wave 1**
 
@@ -59,7 +59,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 **Wave 7** *(blocked on Wave 6 completion)*
 
 - [ ] 01-08-PLAN.md
-- [ ] 01-09-PLAN.md
+- [x] 01-09-PLAN.md
 
 ### Phase 2: Reproducible k3s Foundation
 
@@ -168,7 +168,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure Design and Prerequisites | 7/9 | In Progress |  |
+| 1. Infrastructure Design and Prerequisites | 8/9 | In Progress|  |
 | 2. Reproducible k3s Foundation | 0/TBD | Not started | - |
 | 3. GitOps and Secrets Bootstrap | 0/TBD | Not started | - |
 | 4. Local DNS, Proxy, and TLS | 0/TBD | Not started | - |
