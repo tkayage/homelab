@@ -1,100 +1,89 @@
 {
   "schema_version": "1.0.0",
   "environment": "homelab-production",
-  "topology": {
-    "proxmox_hosts": 1,
-    "physical_host": "MS-01",
-    "boundary": "local-first"
-  },
+  "topology": {"proxmox_hosts": 1, "physical_host": "MS-01", "boundary": "local-first"},
   "site": {
     "proxmox": {
-      "version": {"value": null, "status": "blocked", "validation": "Run pveversion on MS-01 and record the installed Proxmox VE version.", "source": "operator measurement"},
-      "node": {"value": null, "status": "blocked", "validation": "Run hostname on the Proxmox node and match it to the cluster node name.", "source": "operator measurement"},
-      "physical_cores": {"value": null, "status": "blocked", "validation": "Read physical core count from lscpu on MS-01.", "source": "operator measurement"},
-      "physical_threads": {"value": null, "status": "blocked", "validation": "Read online CPU count from lscpu on MS-01.", "source": "operator measurement"},
-      "usable_memory_mib": {"value": null, "status": "blocked", "validation": "Record Proxmox host usable memory in MiB after host reservation.", "source": "operator measurement"},
-      "storage_pools": {"value": null, "status": "blocked", "validation": "Export pvesm status and record every pool used by platform guests with usable and free GiB.", "source": "operator measurement"},
-      "existing_committed_vcpu": {"value": null, "status": "blocked", "validation": "Sum configured vCPUs for all existing Proxmox guests.", "source": "operator measurement"},
-      "existing_committed_memory_mib": {"value": null, "status": "blocked", "validation": "Sum configured memory MiB for all existing Proxmox guests.", "source": "operator measurement"},
-      "existing_committed_storage_gib": {"value": null, "status": "blocked", "validation": "Sum allocated disk GiB on the selected platform datastore for existing guests.", "source": "operator measurement"},
-      "measurement_timestamp": {"value": null, "status": "blocked", "validation": "Record an RFC 3339 timestamp when all host capacity facts are measured.", "source": "operator measurement"}
+      "version": {"value": "PVE 8.4.19", "status": "verified", "validation": "Authenticated read-only API metadata returned the installed PVE version.", "source": "Proxmox PVEAuditor API, 2026-07-07"},
+      "node": {"value": "proxmox", "status": "verified", "validation": "Authenticated node listing identified the target node.", "source": "Proxmox PVEAuditor API, 2026-07-07"},
+      "physical_cores": {"value": 14, "status": "verified", "validation": "Host CPU topology observation recorded physical cores.", "source": "Proxmox node status/CPU topology, 2026-07-07"},
+      "physical_threads": {"value": 20, "status": "verified", "validation": "Host CPU topology observation recorded online logical CPUs.", "source": "Proxmox node status/CPU topology, 2026-07-07"},
+      "usable_memory_mib": {"value": 96290.6, "status": "verified", "validation": "Node status reported approximately 94.0338 GiB physical RAM.", "source": "Proxmox node status API, 2026-07-07"},
+      "storage_pools": {"value": [{"id": "local-lvm", "existing_committed_gib": 323.15, "planned_gib": 192, "resulting_headroom_percent": 69.9}], "status": "verified", "validation": "Target-pool capacity check includes existing and planned commitments and exceeds the approved reserve.", "source": "Proxmox storage and guest inventory recheck, 2026-07-07"},
+      "existing_committed_vcpu": {"value": 32, "status": "verified", "validation": "Fresh guest inventory summed configured vCPUs for retained guests.", "source": "Proxmox guest inventory recheck, 2026-07-07"},
+      "existing_committed_memory_mib": {"value": 52736, "status": "verified", "validation": "Fresh guest inventory summed configured memory for retained guests.", "source": "Proxmox guest inventory recheck, 2026-07-07"},
+      "existing_committed_storage_gib": {"value": 323.15, "status": "verified", "validation": "Fresh target-pool inventory summed existing provisioned guest storage.", "source": "Proxmox storage and guest inventory recheck, 2026-07-07"},
+      "measurement_timestamp": {"value": "2026-07-07T14:39:12Z", "status": "verified", "validation": "Evidence was consolidated from the operator-assisted read-only session.", "source": "operator clock"}
     },
     "network": {
-      "bridge": {"value": null, "status": "blocked", "validation": "Confirm the Proxmox bridge attached to the LAN.", "source": "Proxmox network configuration"},
-      "vlan": {"value": null, "status": "blocked", "validation": "Confirm the platform VLAN ID or explicitly verify that the LAN is untagged.", "source": "Proxmox and Mikrotik configuration"},
-      "subnet": {"value": null, "status": "blocked", "validation": "Record the LAN subnet in CIDR form from Mikrotik.", "source": "Mikrotik configuration"},
-      "gateway": {"value": null, "status": "blocked", "validation": "Record the LAN gateway IPv4 from Mikrotik.", "source": "Mikrotik configuration"},
-      "dns_suffix": {"value": null, "status": "blocked", "validation": "Confirm the DNS suffix used for homelab application and service names.", "source": "Mikrotik and Cloudflare configuration"},
-      "dhcp_exclusion_static_range": {"value": null, "status": "blocked", "validation": "Reserve and collision-check a static IPv4 range outside dynamic DHCP leases.", "source": "Mikrotik configuration"},
-      "npm_identity": {"value": null, "status": "blocked", "validation": "Record and resolve the stable LAN DNS name and IPv4 of Nginx Proxy Manager.", "source": "Mikrotik DNS and NPM host configuration"}
+      "bridge": {"value": "vmbr0", "status": "verified", "validation": "Bridge matched the existing LAN guest network.", "source": "Proxmox network observation, 2026-07-07"},
+      "vlan": {"value": null, "status": "blocked", "validation": "Confirm tagged VLAN ID or explicitly verify the LAN is untagged before provisioning.", "source": "Proxmox and Mikrotik configuration"},
+      "subnet": {"value": "10.10.30.0/24", "status": "verified", "validation": "Subnet matched Proxmox and RouterOS observations.", "source": "Proxmox and RouterOS observation, 2026-07-07"},
+      "gateway": {"value": "10.10.30.1", "status": "verified", "validation": "Gateway was read from RouterOS address state.", "source": "RouterOS observation, 2026-07-07"},
+      "dns_suffix": {"value": "app.kayage.co", "status": "verified", "validation": "Operator approved the platform application suffix.", "source": "operator approval, 2026-07-07"},
+      "dhcp_exclusion_static_range": {"value": "10.10.30.100-10.10.30.200", "status": "verified", "validation": "The selected .100-.102 addresses were included in collision probes that returned no response.", "source": "RouterOS state and collision probes, 2026-07-07"},
+      "npm_identity": {"value": {"dns": "proxy.kayage.co", "ipv4": "10.10.30.237", "guest_id": 111}, "status": "verified", "validation": "Operator confirmed the existing local DNS identity and authenticated NPM API access verified the host.", "source": "operator confirmation and NPM API, 2026-07-07"}
     }
   },
   "capacity": {
     "policy": {
       "cpu": {
-        "mode": {"value": "minimum_uncommitted_thread_percent", "status": "proposed", "validation": "Operator must approve this CPU accounting mode before provisioning.", "source": "Phase 1 planning decision"},
-        "threshold": {"value": 20, "status": "proposed", "validation": "Operator must approve a minimum of 20 percent physical threads left uncommitted.", "source": "Phase 1 planning decision"},
-        "accounting_basis": {"value": "existing committed vCPU plus proposed vCPU compared with measured physical threads", "status": "proposed", "validation": "Confirm all guests are included and measurements are current.", "source": "Phase 1 capacity policy"},
-        "approval_status": {"value": "pending-operator-approval", "status": "proposed", "validation": "Operator records approval after reviewing measured capacity and workload contention risk.", "source": "operator approval"},
-        "rationale": {"value": "Retain measurable CPU scheduling headroom on the single physical host.", "status": "proposed", "validation": "Operator confirms the reserve is appropriate for MS-01 workloads.", "source": "Phase 1 capacity policy"}
+        "mode": {"value": "maximum_vcpu_overcommit_ratio", "status": "verified", "validation": "Operator approved configured vCPU divided by physical threads.", "source": "operator approval, 2026-07-07"},
+        "maximum_vcpu_overcommit_ratio": {"value": 2.5, "status": "verified", "validation": "Existing 32 vCPU plus planned 10 vCPU over 20 threads yields 2.1 and passes.", "source": "operator approval and Proxmox capacity recheck, 2026-07-07"},
+        "accounting_basis": {"value": "existing committed vCPU plus planned vCPU divided by measured physical threads", "status": "verified", "validation": "All retained and planned guests are included.", "source": "Phase 1 capacity policy"},
+        "approval_status": {"value": "approved", "status": "verified", "validation": "Operator explicitly approved the policy.", "source": "operator approval, 2026-07-07"}
       },
-      "minimum_memory_headroom_percent": {"value": 20, "status": "proposed", "validation": "Operator must approve at least 20 percent of usable RAM remaining unallocated.", "source": "Phase 1 research"},
-      "minimum_storage_headroom_percent": {"value": 20, "status": "proposed", "validation": "Operator must approve at least 20 percent of usable datastore capacity remaining unallocated.", "source": "Phase 1 research"}
+      "minimum_memory_headroom_percent": {"value": 20, "status": "verified", "validation": "Existing 52736 MiB plus planned 20480 MiB leaves approximately 23.9 percent and passes.", "source": "operator approval and Proxmox capacity recheck, 2026-07-07"},
+      "minimum_storage_headroom_percent": {"value": 20, "status": "verified", "validation": "local-lvm existing 323.15 GiB plus planned 192 GiB leaves approximately 69.9 percent and passes.", "source": "operator approval and Proxmox capacity recheck, 2026-07-07"}
     }
   },
   "guests": [
     {
-      "id": "postgres-01", "kind": "lxc", "owner": "opentofu", "configuration_owner": "config-automation", "data_class": "durable", "depends_on": [],
-      "resources": {"vcpu": {"value": 2, "status": "proposed", "validation": "Approve after host capacity measurement.", "source": "Phase 1 research"}, "memory_mib": {"value": 4096, "status": "proposed", "validation": "Approve after host capacity measurement.", "source": "Phase 1 research"}, "disk_gib": {"value": 64, "status": "proposed", "validation": "Approve against datastore capacity and backup retention.", "source": "Phase 1 research"}},
-      "network": {"ipv4": {"value": null, "status": "blocked", "validation": "Reserve and collision-check a stable IPv4 outside DHCP.", "source": "Mikrotik configuration"}, "dns": {"value": null, "status": "blocked", "validation": "Assign a stable LAN name under the verified DNS suffix.", "source": "Mikrotik DNS configuration"}},
-      "startup": {"order": {"value": 10, "status": "proposed", "validation": "Approve Proxmox startup ordering.", "source": "Phase 1 dependency design"}, "delay_seconds": {"value": 30, "status": "proposed", "validation": "Tune after measuring native PostgreSQL readiness.", "source": "Phase 1 dependency design"}}
+      "id": "postgres-01", "kind": "lxc", "guest_id": {"value": 120, "status": "verified", "source": "operator approval, 2026-07-07"}, "owner": "opentofu", "configuration_owner": "config-automation", "data_class": "durable", "depends_on": [],
+      "resources": {"vcpu": {"value": 2, "status": "verified", "source": "operator approval, 2026-07-07"}, "memory_mib": {"value": 4096, "status": "verified", "source": "operator approval, 2026-07-07"}, "disk_gib": {"value": 64, "status": "verified", "source": "operator approval, 2026-07-07"}},
+      "network": {"ipv4": {"value": "10.10.30.100", "status": "verified", "source": "operator assignment and collision probe, 2026-07-07"}, "dns": {"value": "postgres.app.kayage.co", "status": "verified", "source": "operator approval, 2026-07-07"}},
+      "startup": {"order": {"value": 10, "status": "verified", "source": "operator approval, 2026-07-07"}, "delay_seconds": {"value": 30, "status": "verified", "source": "operator approval, 2026-07-07"}}
     },
     {
-      "id": "valkey-01", "kind": "lxc", "owner": "opentofu", "configuration_owner": "config-automation", "data_class": "durable", "depends_on": [],
-      "resources": {"vcpu": {"value": 1, "status": "proposed", "validation": "Approve after host capacity measurement.", "source": "Phase 1 research"}, "memory_mib": {"value": 2048, "status": "proposed", "validation": "Approve after host capacity measurement.", "source": "Phase 1 research"}, "disk_gib": {"value": 16, "status": "proposed", "validation": "Approve against datastore capacity.", "source": "Phase 1 research"}},
-      "network": {"ipv4": {"value": null, "status": "blocked", "validation": "Reserve and collision-check a stable IPv4 outside DHCP.", "source": "Mikrotik configuration"}, "dns": {"value": null, "status": "blocked", "validation": "Assign a stable LAN name under the verified DNS suffix.", "source": "Mikrotik DNS configuration"}},
-      "startup": {"order": {"value": 20, "status": "proposed", "validation": "Approve Proxmox startup ordering.", "source": "Phase 1 dependency design"}, "delay_seconds": {"value": 15, "status": "proposed", "validation": "Tune after measuring native Valkey readiness.", "source": "Phase 1 dependency design"}}
+      "id": "services-01", "kind": "vm", "guest_id": {"value": 121, "status": "verified", "source": "operator approval, 2026-07-07"}, "owner": "opentofu", "configuration_owner": "config-automation", "data_class": "mixed", "runtime": "docker-compose", "depends_on": ["postgres-01"],
+      "resources": {"vcpu": {"value": 4, "status": "verified", "source": "operator approval, 2026-07-07"}, "memory_mib": {"value": 8192, "status": "verified", "source": "operator approval, 2026-07-07"}, "disk_gib": {"value": 64, "status": "verified", "source": "operator approval, 2026-07-07"}},
+      "network": {"ipv4": {"value": "10.10.30.101", "status": "verified", "source": "operator assignment and collision probe, 2026-07-07"}, "dns": {"value": "services.app.kayage.co", "status": "verified", "source": "operator approval, 2026-07-07"}},
+      "startup": {"order": {"value": 20, "status": "verified", "source": "operator approval, 2026-07-07"}, "delay_seconds": {"value": 30, "status": "verified", "source": "operator approval, 2026-07-07"}},
+      "service_readiness_contract": "Docker Compose controls internal startup order with service health checks; Proxmox startup metadata applies only to services-01 as a VM.",
+      "services": [
+        {"id": "valkey", "data_class": "durable", "depends_on": [], "readiness": "Compose health check must pass before dependent services are ready."},
+        {"id": "nats", "mode": "jetstream", "data_class": "durable", "depends_on": [], "readiness": "Compose health check must confirm NATS and JetStream availability."},
+        {"id": "debezium", "data_class": "ephemeral", "depends_on": ["postgres-01", "nats"], "readiness": "Compose dependency checks require reachable PostgreSQL and healthy NATS before Debezium readiness."}
+      ]
     },
     {
-      "id": "nats-01", "kind": "lxc", "owner": "opentofu", "configuration_owner": "config-automation", "data_class": "durable", "depends_on": [],
-      "resources": {"vcpu": {"value": 1, "status": "proposed", "validation": "Approve after host capacity measurement.", "source": "Phase 1 research"}, "memory_mib": {"value": 2048, "status": "proposed", "validation": "Approve after host capacity measurement.", "source": "Phase 1 research"}, "disk_gib": {"value": 32, "status": "proposed", "validation": "Approve against datastore capacity and JetStream bounds.", "source": "Phase 1 research"}},
-      "network": {"ipv4": {"value": null, "status": "blocked", "validation": "Reserve and collision-check a stable IPv4 outside DHCP.", "source": "Mikrotik configuration"}, "dns": {"value": null, "status": "blocked", "validation": "Assign a stable LAN name under the verified DNS suffix.", "source": "Mikrotik DNS configuration"}},
-      "startup": {"order": {"value": 20, "status": "proposed", "validation": "Approve Proxmox startup ordering.", "source": "Phase 1 dependency design"}, "delay_seconds": {"value": 15, "status": "proposed", "validation": "Tune after measuring NATS JetStream readiness.", "source": "Phase 1 dependency design"}}
+      "id": "k3s-01", "kind": "vm", "guest_id": {"value": 122, "status": "verified", "source": "operator approval, 2026-07-07"}, "owner": "opentofu", "configuration_owner": "config-automation", "kubernetes_resource_owner": "argocd", "data_class": "ephemeral-disposable", "depends_on": ["postgres-01", "services-01", "zitadel-existing"],
+      "resources": {"vcpu": {"value": 4, "status": "verified", "source": "operator approval, 2026-07-07"}, "memory_mib": {"value": 8192, "status": "verified", "source": "operator approval, 2026-07-07"}, "disk_gib": {"value": 64, "status": "verified", "source": "operator approval, 2026-07-07"}},
+      "network": {"ipv4": {"value": "10.10.30.102", "status": "verified", "source": "operator assignment and collision probe, 2026-07-07"}, "dns": {"value": "k3s.app.kayage.co", "status": "verified", "source": "operator approval, 2026-07-07"}},
+      "startup": {"order": {"value": 40, "status": "verified", "source": "operator approval, 2026-07-07"}, "delay_seconds": {"value": 30, "status": "verified", "source": "operator approval, 2026-07-07"}}
     },
     {
-      "id": "debezium-01", "kind": "lxc", "owner": "opentofu", "configuration_owner": "config-automation", "data_class": "ephemeral", "depends_on": ["postgres-01", "nats-01"],
-      "resources": {"vcpu": {"value": 2, "status": "proposed", "validation": "Approve after host capacity measurement.", "source": "Phase 1 research"}, "memory_mib": {"value": 4096, "status": "proposed", "validation": "Approve after host capacity measurement.", "source": "Phase 1 research"}, "disk_gib": {"value": 16, "status": "proposed", "validation": "Approve against datastore capacity.", "source": "Phase 1 research"}},
-      "network": {"ipv4": {"value": null, "status": "blocked", "validation": "Reserve and collision-check a stable IPv4 outside DHCP.", "source": "Mikrotik configuration"}, "dns": {"value": null, "status": "blocked", "validation": "Assign a stable LAN name under the verified DNS suffix.", "source": "Mikrotik DNS configuration"}},
-      "startup": {"order": {"value": 30, "status": "proposed", "validation": "Approve ordering after PostgreSQL and NATS.", "source": "Phase 1 dependency design"}, "delay_seconds": {"value": 30, "status": "proposed", "validation": "Tune after measuring Debezium readiness.", "source": "Phase 1 dependency design"}}
-    },
-    {
-      "id": "k3s-01", "kind": "vm", "owner": "opentofu", "configuration_owner": "config-automation", "kubernetes_resource_owner": "argocd", "data_class": "ephemeral-disposable", "depends_on": ["postgres-01", "valkey-01", "nats-01", "debezium-01", "zitadel-existing"],
-      "resources": {"vcpu": {"value": 4, "status": "proposed", "validation": "Approve after host capacity measurement.", "source": "Phase 1 research"}, "memory_mib": {"value": 8192, "status": "proposed", "validation": "Approve after host capacity measurement.", "source": "Phase 1 research"}, "disk_gib": {"value": 64, "status": "proposed", "validation": "Approve against datastore capacity.", "source": "Phase 1 research"}},
-      "network": {"ipv4": {"value": null, "status": "blocked", "validation": "Reserve and collision-check a stable IPv4 outside DHCP.", "source": "Mikrotik configuration"}, "dns": {"value": null, "status": "blocked", "validation": "Assign a stable LAN name under the verified DNS suffix.", "source": "Mikrotik DNS configuration"}},
-      "startup": {"order": {"value": 40, "status": "proposed", "validation": "Approve ordering after shared services.", "source": "Phase 1 dependency design"}, "delay_seconds": {"value": 30, "status": "proposed", "validation": "Tune after measuring k3s readiness.", "source": "Phase 1 dependency design"}}
-    },
-    {
-      "id": "zitadel-existing", "kind": "lxc", "owner": "manual-existing", "configuration_owner": "manual-existing", "data_class": "durable", "lifecycle_constraint": "observe-only; this inventory does not authorize resizing or reprovisioning", "depends_on": [],
-      "observed_guest_id": {"value": null, "status": "blocked", "validation": "Read the existing Zitadel LXC guest ID from Proxmox without changing it.", "source": "Proxmox observation"},
-      "resources": {"vcpu": {"value": null, "status": "blocked", "validation": "Observe current configured vCPU; do not resize.", "source": "Proxmox observation"}, "memory_mib": {"value": null, "status": "blocked", "validation": "Observe current configured memory; do not resize.", "source": "Proxmox observation"}, "disk_gib": {"value": null, "status": "blocked", "validation": "Observe current configured disk; do not resize.", "source": "Proxmox observation"}},
-      "network": {"ipv4": {"value": null, "status": "blocked", "validation": "Observe and verify the existing stable Zitadel IPv4.", "source": "Proxmox and Mikrotik observation"}, "dns": {"value": null, "status": "blocked", "validation": "Observe and resolve the existing Zitadel LAN DNS name.", "source": "Mikrotik DNS observation"}},
-      "startup": {"order": {"value": null, "status": "blocked", "validation": "Observe current Proxmox startup order; do not change it in this phase.", "source": "Proxmox observation"}, "delay_seconds": {"value": null, "status": "blocked", "validation": "Observe current startup delay; do not change it in this phase.", "source": "Proxmox observation"}},
-      "measurement_source": {"value": null, "status": "blocked", "validation": "Record the non-secret Proxmox command or UI view used for all observations.", "source": "operator observation"},
-      "measurement_timestamp": {"value": null, "status": "blocked", "validation": "Record an RFC 3339 observation timestamp.", "source": "operator observation"}
+      "id": "zitadel-existing", "kind": "lxc", "owner": "manual-existing", "configuration_owner": "manual-existing", "data_class": "durable", "lifecycle_constraint": "observe-only and unresized in Phase 1; approved startup metadata is recorded for later mutation by its owner", "depends_on": [],
+      "observed_guest_id": {"value": 112, "status": "verified", "source": "Proxmox PVEAuditor API, 2026-07-07"},
+      "resources": {"vcpu": {"value": 1, "status": "verified", "source": "read-only LXC configuration, 2026-07-07"}, "memory_mib": {"value": 1024, "status": "verified", "source": "read-only LXC configuration, 2026-07-07"}, "disk_gib": {"value": 8, "status": "verified", "source": "read-only LXC configuration, 2026-07-07"}},
+      "network": {"ipv4": {"value": "10.10.30.236", "status": "verified", "source": "read-only LXC and LAN observation, 2026-07-07"}, "dns": {"value": "zitadel.kayage.co", "status": "verified", "source": "operator-confirmed local DNS identity, 2026-07-07"}},
+      "startup": {"order": {"value": 15, "status": "verified", "validation": "Approved desired metadata for later mutation; no Phase 1 change was made.", "source": "operator approval, 2026-07-07"}, "delay_seconds": {"value": 30, "status": "verified", "validation": "Approved desired metadata for later mutation; no Phase 1 change was made.", "source": "operator approval, 2026-07-07"}},
+      "measurement_source": {"value": "Proxmox PVEAuditor API guest list and LXC configuration", "status": "verified", "source": "redacted read-only request metadata"},
+      "measurement_timestamp": {"value": "2026-07-07T14:39:12Z", "status": "verified", "source": "operator clock"}
     }
   ],
   "responsibilities": [
-    {"capability": "guest-and-external-infrastructure-lifecycle", "owner": "opentofu", "boundary": "Proxmox guests and explicitly declared external infrastructure; never Kubernetes resources"},
-    {"capability": "native-service-configuration", "owner": "config-automation", "boundary": "Software and operating-system configuration inside provisioned native-service LXCs and VM"},
+    {"capability": "guest-and-external-infrastructure-lifecycle", "owner": "opentofu", "boundary": "The three declared new Proxmox guests and explicitly declared external infrastructure; never Kubernetes resources or existing manual guests"},
+    {"capability": "native-service-configuration", "owner": "config-automation", "boundary": "PostgreSQL inside postgres-01 and Docker Compose plus services inside services-01; Docker-in-LXC is prohibited"},
     {"capability": "kubernetes-resources", "owner": "argocd", "boundary": "Desired state inside k3s only; never guests, routers, DNS providers, or proxy lifecycle"},
-    {"capability": "pre-existing-systems", "owner": "manual-existing", "boundary": "Existing Zitadel and other retained systems unless a later approved contract changes ownership"}
+    {"capability": "pre-existing-systems", "owner": "manual-existing", "boundary": "Existing Zitadel, NPM, Cloudflared, Frigate, and other retained systems unless a later approved contract changes ownership"}
   ],
   "credentials": [
-    {"system": "proxmox", "logical_name": "proxmox-opentofu-service-identity", "owner": "operator", "minimum_scope": "Dedicated role limited to required VM/LXC and storage lifecycle on the target node", "storage_location": "operator-managed secret store; injected at execution time", "consumers": ["opentofu"], "rotation_revocation": "Rotate in Proxmox and update the execution secret store; revoke the old identity after a successful read-only plan.", "acquisition_verification": "Create a dedicated Proxmox identity and verify it can list the target node and permitted resources without exposing credential material."},
-    {"system": "mikrotik-lan", "logical_name": "mikrotik-lan-automation-identity", "owner": "operator", "minimum_scope": "Read network/DHCP state and manage only platform static DNS entries", "storage_location": "operator-managed secret store; injected only into edge automation", "consumers": ["opentofu", "config-automation"], "rotation_revocation": "Replace the router identity credential, verify read-only access, then revoke the previous credential.", "acquisition_verification": "Create a dedicated RouterOS group and identity; verify identity and scope using a non-mutating resource listing."},
-    {"system": "npm", "logical_name": "npm-automation-identity", "owner": "operator", "minimum_scope": "Manage platform proxy hosts and certificates without administrative-system exposure", "storage_location": "operator-managed secret store; injected only into edge automation", "consumers": ["opentofu", "config-automation"], "rotation_revocation": "Rotate the NPM identity through its supported account workflow and remove the superseded session or identity.", "acquisition_verification": "Confirm the dedicated identity can enumerate platform proxy resources through a read-only check."},
-    {"system": "cloudflare", "logical_name": "cloudflare-platform-zone-identity", "owner": "operator", "minimum_scope": "Zone-scoped DNS edit and zone read for the single managed domain", "storage_location": "operator-managed secret store and approved CI secret store for named consumers", "consumers": ["opentofu", "certificate-automation"], "rotation_revocation": "Issue a replacement zone-scoped identity, verify zone access, update consumers, and revoke the former identity.", "acquisition_verification": "Create a zone-scoped Cloudflare API identity and verify it can read only the intended zone metadata."},
-    {"system": "github", "logical_name": "github-gitops-automation-identity", "owner": "operator", "minimum_scope": "Contents read/write only on explicitly selected application and GitOps repositories", "storage_location": "GitHub Actions secret or GitHub App installation configuration plus operator recovery record", "consumers": ["github-actions", "gitops-update-workflow"], "rotation_revocation": "Rotate or reinstall the repository-scoped identity and revoke previous grants after workflow verification.", "acquisition_verification": "Verify repository installation and permissions from GitHub settings without recording any credential value."},
-    {"system": "ghcr", "logical_name": "ghcr-cluster-pull-identity", "owner": "operator", "minimum_scope": "Read packages for only the required private container packages", "storage_location": "encrypted GitOps bootstrap secret material; recovery copy in operator secret store", "consumers": ["k3s-image-pull"], "rotation_revocation": "Replace the package-read identity, reconcile the encrypted pull secret, verify a test pull, then revoke the former identity.", "acquisition_verification": "Confirm package read access with the intended service identity outside repository content; do not save command output containing authentication material."}
+    {"system": "proxmox", "logical_name": "proxmox-opentofu-service-identity", "secret_store_label": "homelab/proxmox/opentofu", "owner": "operator", "minimum_scope": "Dedicated role limited to required VM/LXC and storage lifecycle on the target node", "verification_status": "verified-read", "consumers": ["opentofu"]},
+    {"system": "mikrotik-lan", "logical_name": "mikrotik-lan-automation-identity", "secret_store_label": "homelab/mikrotik/lan-automation", "owner": "operator", "minimum_scope": "Read network/DHCP state and manage only platform static DNS entries", "verification_status": "verified-read", "consumers": ["opentofu", "config-automation"]},
+    {"system": "npm", "logical_name": "npm-automation-identity", "secret_store_label": "homelab/npm/platform-automation", "owner": "operator", "minimum_scope": "Manage platform proxy hosts and certificates without administrative-system exposure", "verification_status": "verified-read", "consumers": ["opentofu", "config-automation"]},
+    {"system": "cloudflare", "logical_name": "cloudflare-platform-zone-identity", "secret_store_label": "homelab/cloudflare/platform-zone", "owner": "operator", "minimum_scope": "Zone-scoped DNS edit and zone read for kayage.co and hapa.dev", "verification_status": "verified-read", "consumers": ["opentofu", "certificate-automation"]},
+    {"system": "github", "logical_name": "github-gitops-automation-identity", "secret_store_label": "homelab/github/gitops-automation", "owner": "operator", "minimum_scope": "Contents read/write only on explicitly selected application and tkayage/gitops-homelab repositories", "verification_status": "verified-read", "consumers": ["github-actions", "gitops-update-workflow"]},
+    {"system": "ghcr", "logical_name": "ghcr-cluster-pull-identity", "secret_store_label": "homelab/ghcr/cluster-pull", "owner": "operator", "minimum_scope": "Read packages for only the required private container packages", "verification_status": "verified-read", "consumers": ["k3s-image-pull"]}
   ]
 }

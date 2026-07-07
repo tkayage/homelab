@@ -2,7 +2,7 @@
 
 ## Approved topology
 
-The platform runs on the single Proxmox host identified by `site.proxmox.node` in [`infrastructure/inventory.json`](../infrastructure/inventory.json). A disposable single-node k3s VM hosts stateless applications and Kubernetes control-plane state. Postgres, Valkey, NATS JetStream, and Debezium each run as native services in a dedicated LXC. The existing Zitadel LXC is retained and observe-only. Durable application data remains outside k3s.
+The platform runs on the single Proxmox host identified by `site.proxmox.node` in [`infrastructure/inventory.json`](../infrastructure/inventory.json). Exactly three new guests are approved: `postgres-01`, a native PostgreSQL LXC; `services-01`, a VM running Valkey, NATS with JetStream, and Debezium in one Docker Compose project; and `k3s-01`, a disposable single-node k3s VM. Docker-in-LXC is prohibited. Existing Zitadel, NPM, Cloudflared, and Frigate remain separate existing LXCs. Durable application data remains outside k3s.
 
 Local clients resolve application names through Mikrotik and enter through Nginx Proxy Manager before the k3s ingress. Public exposure is a separate, explicit opt-in path. Mutable names, addresses, resource allocations, guest identifiers, and startup settings are read from the inventory; they are deliberately not duplicated here.
 
@@ -18,9 +18,10 @@ The lifecycle and configuration columns use only the canonical owner enums `argo
 |---|---|---|---|---|---|
 | k3s-01 | `guests[id=k3s-01]` | opentofu | config-automation | ephemeral-disposable | Proxmox guest boundary; host lifecycle is external to Kubernetes, while in-guest bootstrap ends before Argo CD desired state begins |
 | postgres-01 | `guests[id=postgres-01]` | opentofu | config-automation | durable | Dedicated LXC boundary; database files and recovery material never become k3s lifecycle state |
-| valkey-01 | `guests[id=valkey-01]` | opentofu | config-automation | durable | Dedicated LXC boundary; persistence and service policy are managed inside the guest, outside Kubernetes |
-| nats-01 | `guests[id=nats-01]` | opentofu | config-automation | durable | Dedicated LXC boundary; JetStream storage remains outside Kubernetes |
-| debezium-01 | `guests[id=debezium-01]` | opentofu | config-automation | ephemeral | Dedicated LXC boundary; connector service configuration may reference durable systems without owning them |
+| services-01 | `guests[id=services-01]` | opentofu | config-automation | mixed | Dedicated VM boundary; Docker Compose owns internal ordering and health checks for Valkey, NATS/JetStream, and Debezium |
+| valkey | `guests[id=services-01].services[id=valkey]` | config-automation | config-automation | durable | Compose service boundary inside `services-01`; not a Proxmox guest |
+| nats | `guests[id=services-01].services[id=nats]` | config-automation | config-automation | durable | Compose service boundary inside `services-01`; bounded JetStream storage remains outside Kubernetes |
+| debezium | `guests[id=services-01].services[id=debezium]` | config-automation | config-automation | ephemeral | Compose service boundary inside `services-01`; depends on PostgreSQL and healthy NATS without owning their durable data |
 | zitadel-existing | `guests[id=zitadel-existing]` | manual-existing | manual-existing | durable | Pre-existing identity-system boundary; Phase 1 and platform automation are observe-only |
 | kubernetes-desired-state | `responsibilities[capability=kubernetes-resources]` | argocd | argocd | declarative-rebuildable | Inside-k3s API boundary only; excludes VM/LXC, router, DNS provider, proxy, and native-service lifecycle |
 | vm-lxc-lifecycle | `responsibilities[capability=guest-and-external-infrastructure-lifecycle]` | opentofu | opentofu | declarative-infrastructure | Proxmox API boundary; excludes operating-system/service configuration and Kubernetes objects |
@@ -41,7 +42,9 @@ The lifecycle and configuration columns use only the canonical owner enums `argo
 
 ## Startup sequencing and readiness
 
-Proxmox startup order and delay fields under each `guests[]` entry control deterministic guest boot sequencing after the physical host starts. They establish dependency order only; a delay is not evidence that a service is ready.
+Proxmox startup order and delay fields under each `guests[]` entry control deterministic guest boot sequencing after the physical host starts: PostgreSQL order 10, existing Zitadel order 15, `services-01` order 20, existing NPM order 30, and k3s order 40, each with a 30-second delay. Existing-system values are approved desired metadata for later owner-controlled mutation; Phase 1 does not apply them. These settings establish guest dependency order only; a delay is not evidence that a service is ready.
+
+Inside `services-01`, Docker Compose—not Proxmox—controls Valkey, NATS/JetStream, and Debezium dependency order and protocol-specific health checks. Compose-internal readiness must never be modeled as separate Proxmox startup orders.
 
 Later configuration and end-to-end phases must perform protocol-specific readiness checks before dependents are considered available. In particular, Debezium readiness depends on reachable Postgres and NATS services, and application readiness depends on the required shared services and Zitadel. A successful guest boot alone must never satisfy those checks.
 
