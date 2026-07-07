@@ -11,6 +11,7 @@
 
 # Generated cluster access and bootstrap material
 .local/
+infrastructure/kubernetes/argocd/sops
 **/kubeconfig*
 **/*.private
 **/*.key

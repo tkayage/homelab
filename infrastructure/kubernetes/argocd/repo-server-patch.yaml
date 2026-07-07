@@ -2,11 +2,11 @@ spec:
   template:
     spec:
       volumes:
+        - name: cmp-sops-tools
+          $patch: delete
         - name: cmp-sops-config
           configMap:
             name: argocd-cmp-sops
-        - name: cmp-sops-tools
-          emptyDir: {}
         - name: cmp-sops-age
           secret:
             secretName: sops-age
@@ -14,27 +14,18 @@ spec:
           emptyDir: {}
       initContainers:
         - name: install-sops
-          image: alpine:3.22.1
-          command: [sh, -c]
-          args:
-            - |
-              set -eu
-              apk add --no-cache ca-certificates curl
-              url="https://github.com/getsops/sops/releases/download/v3.13.2/sops-v3.13.2.linux.amd64"
-              curl -fL --retry 5 --connect-timeout 15 -o /custom-tools/sops "$url"
-              echo "154dfe4cd70554bdd82b98e4cd4acf191d43d01ead6f00a73477aa44c4ac42ef  /custom-tools/sops" | sha256sum -c -
-              chmod 0755 /custom-tools/sops
-          volumeMounts:
-            - name: cmp-sops-tools
-              mountPath: /custom-tools
+          $patch: delete
       containers:
         - name: sops-kustomize
-          image: quay.io/argoproj/argocd:v3.4.2
+          image: homelab/argocd-sops:v3.4.2-sops3.13.2
+          imagePullPolicy: Never
           command: [/var/run/argocd/argocd-cmp-server]
           securityContext:
             runAsNonRoot: true
             runAsUser: 999
           volumeMounts:
+            - mountPath: /usr/local/bin/sops
+              $patch: delete
             - name: var-files
               mountPath: /var/run/argocd
             - name: plugins
@@ -42,9 +33,6 @@ spec:
             - name: cmp-sops-config
               mountPath: /home/argocd/cmp-server/config/plugin.yaml
               subPath: plugin.yaml
-            - name: cmp-sops-tools
-              mountPath: /usr/local/bin/sops
-              subPath: sops
             - name: cmp-sops-age
               mountPath: /home/argocd/.config/sops/age
               readOnly: true

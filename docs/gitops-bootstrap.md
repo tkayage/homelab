@@ -11,7 +11,7 @@ bash scripts/gitops-platform.sh bootstrap
 bash tests/test-gitops-bootstrap.sh live
 ```
 
-Bootstrap applies the age key and private GitHub repository credential before creating the root Application. Neither credential is committed. SOPS decrypts `*.enc.yaml` inside an ephemeral Config Management Plugin work directory and feeds the result to Kustomize.
+Bootstrap builds a checksum-verified Argo CD/SOPS CMP image on the operator host and imports it over the Phase 2 SSH path, then applies the age key and private GitHub repository credential before creating the root Application. Neither credential is committed. SOPS decrypts `*.enc.yaml` inside an ephemeral Config Management Plugin work directory and feeds the result to Kustomize.
 
 ## Observe and diagnose
 

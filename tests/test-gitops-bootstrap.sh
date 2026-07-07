@@ -35,7 +35,7 @@ live_tests() {
   pass=$((pass + 1))
   [[ "$(kubectl -n argocd get application platform-root -o jsonpath='{.spec.syncPolicy.automated.prune}')" != true ]]
   pass=$((pass + 1))
-  [[ "$(kubectl -n argocd get applicationset homelab-apps -o jsonpath='{.spec.preserveResourcesOnDeletion}')" == true ]]
+  [[ "$(kubectl -n argocd get applicationset homelab-apps -o jsonpath='{.spec.syncPolicy.preserveResourcesOnDeletion}')" == true ]]
   pass=$((pass + 1))
   [[ -f "$ROOT/.local/phase-03-rollback-proof" ]]
   pass=$((pass + 1))

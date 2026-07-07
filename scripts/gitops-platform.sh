@@ -10,6 +10,7 @@ GITOPS_URL="https://github.com/${GITOPS_REPO}.git"
 WORKTREE="$ROOT/.local/gitops-homelab"
 ARGO_VERSION="v3.4.2"
 ARGO_MANIFEST="https://raw.githubusercontent.com/argoproj/argo-cd/${ARGO_VERSION}/manifests/install.yaml"
+CMP_IMAGE="homelab/argocd-sops:v3.4.2-sops3.13.2"
 export KUBECONFIG
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -36,7 +37,7 @@ EOF
 }
 
 preflight() {
-  need git; need kubectl; need curl
+  need git; need kubectl; need curl; need jq; need docker; need ssh
   [[ -s "$KUBECONFIG" ]] || die "missing kubeconfig: $KUBECONFIG"
   [[ -s "$AGE_KEY_FILE" ]] || die "missing age recovery key: $AGE_KEY_FILE"
   [[ "$(stat -c %a "$AGE_KEY_FILE")" == 600 ]] || die "age key must have mode 600"
@@ -47,6 +48,23 @@ preflight() {
     "https://api.github.com/repos/$GITOPS_REPO" | grep -q '"push": true' ||
     die "credential cannot push to $GITOPS_REPO"
   printf 'preflight passed\n'
+}
+
+prepare_cmp_image() {
+  local source="$ROOT/.local/downloads/sops-v3.13.2.linux.amd64"
+  if [[ ! -s "$source" ]]; then
+    mkdir -p "$(dirname "$source")"
+    curl -fL --retry 5 -o "$source" \
+      'https://github.com/getsops/sops/releases/download/v3.13.2/sops-v3.13.2.linux.amd64'
+  fi
+  echo "154dfe4cd70554bdd82b98e4cd4acf191d43d01ead6f00a73477aa44c4ac42ef  $source" | sha256sum -c - >/dev/null
+  install -m 0755 "$source" "$ROOT/infrastructure/kubernetes/argocd/sops"
+  trap 'rm -f "$ROOT/infrastructure/kubernetes/argocd/sops"' RETURN
+  docker build --quiet -t "$CMP_IMAGE" \
+    -f "$ROOT/infrastructure/kubernetes/argocd/Dockerfile.sops" \
+    "$ROOT/infrastructure/kubernetes/argocd" >/dev/null
+  docker save "$CMP_IMAGE" |
+    ssh -o BatchMode=yes ubuntu@10.10.30.102 'sudo k3s ctr images import -' >/dev/null
 }
 
 sync_worktree() {
@@ -76,8 +94,18 @@ publish() {
 }
 
 install_argocd() {
+  prepare_cmp_image
   kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
   kubectl apply -n argocd --server-side --force-conflicts -f "$ARGO_MANIFEST"
+  for resource in $(kubectl -n argocd get deployments,statefulsets -o name); do
+    kubectl -n argocd patch "$resource" --type=json \
+      -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]' >/dev/null
+    init_count="$(kubectl -n argocd get "$resource" -o json | jq '.spec.template.spec.initContainers // [] | length')"
+    for ((index = 0; index < init_count; index++)); do
+      kubectl -n argocd patch "$resource" --type=json \
+        -p="[{\"op\":\"replace\",\"path\":\"/spec/template/spec/initContainers/$index/imagePullPolicy\",\"value\":\"IfNotPresent\"}]" >/dev/null
+    done
+  done
   kubectl apply -f "$ROOT/infrastructure/kubernetes/argocd/cmp-plugin.yaml"
   kubectl -n argocd create secret generic sops-age \
     --from-file="keys.txt=$AGE_KEY_FILE" --dry-run=client -o yaml | kubectl apply -f -
@@ -90,6 +118,13 @@ install_argocd() {
     kubectl apply -f -
   kubectl -n argocd patch deployment argocd-repo-server --type=strategic \
     --patch-file "$ROOT/infrastructure/kubernetes/argocd/repo-server-patch.yaml"
+  container_count="$(kubectl -n argocd get deployment/argocd-repo-server -o json | jq '.spec.template.spec.containers | length')"
+  for ((index = 0; index < container_count; index++)); do
+    image="$(kubectl -n argocd get deployment/argocd-repo-server -o json | jq -r ".spec.template.spec.containers[$index].image")"
+    [[ "$image" == "$CMP_IMAGE" ]] && policy=Never || policy=IfNotPresent
+    kubectl -n argocd patch deployment/argocd-repo-server --type=json \
+      -p="[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/$index/imagePullPolicy\",\"value\":\"$policy\"}]" >/dev/null
+  done
   kubectl -n argocd rollout status deployment/argocd-repo-server --timeout=10m
   kubectl -n argocd rollout status deployment/argocd-server --timeout=5m
 }
