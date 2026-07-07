@@ -90,7 +90,9 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   4. Operator can inspect health and restore an earlier known-good state through git revert.
   5. Platform-resource prune and finalizer policies prevent accidental cascading deletion.
 
-**Plans**: TBD
+**Plans**: 1 plan
+
+- [ ] 03-01-PLAN.md
 
 ### Phase 4: Local DNS, Proxy, and TLS
 
@@ -172,7 +174,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 |-------|----------------|--------|-----------|
 | 1. Infrastructure Design and Prerequisites | 9/9 | Complete    | 2026-07-07 |
 | 2. Reproducible k3s Foundation | 1/1 | Complete    | 2026-07-07 |
-| 3. GitOps and Secrets Bootstrap | 0/TBD | Not started | - |
+| 3. GitOps and Secrets Bootstrap | 0/1 | Planned | - |
 | 4. Local DNS, Proxy, and TLS | 0/TBD | Not started | - |
 | 5. Shared Stateful Services | 0/TBD | Not started | - |
 | 6. Build Pipeline and Project Scaffolding | 0/TBD | Not started | - |
