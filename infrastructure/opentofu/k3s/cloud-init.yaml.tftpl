@@ -1,0 +1,53 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${dns_name}
+manage_etc_hosts: true
+ssh_pwauth: false
+disable_root: true
+users:
+  - default
+  - name: ubuntu
+    groups: [adm, sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+packages:
+  - ca-certificates
+  - curl
+  - qemu-guest-agent
+write_files:
+  - path: /etc/rancher/k3s/config.yaml
+    permissions: "0600"
+    content: |
+      write-kubeconfig-mode: "0600"
+      tls-san:
+        - ${dns_name}
+        - 10.10.30.102
+      node-name: ${hostname}
+  - path: /etc/systemd/system/k3s.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Lightweight Kubernetes
+      Wants=network-online.target
+      After=network-online.target
+      [Service]
+      Type=notify
+      Environment=K3S_KUBECONFIG_MODE=600
+      ExecStart=/usr/local/bin/k3s server
+      KillMode=process
+      Delegate=yes
+      LimitNOFILE=1048576
+      Restart=always
+      RestartSec=5s
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - [systemctl, enable, --now, qemu-guest-agent]
+  - [curl, --proto, =https, --tlsv1.2, -fsSL, -o, /usr/local/bin/k3s, "https://github.com/k3s-io/k3s/releases/download/${k3s_url_version}/k3s"]
+  - [bash, -c, "echo '${k3s_sha256}  /usr/local/bin/k3s' | sha256sum -c -"]
+  - [chmod, "0755", /usr/local/bin/k3s]
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, k3s]
+final_message: "k3s ${k3s_version} bootstrap complete"
