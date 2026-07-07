@@ -1,6 +1,6 @@
 # Local wildcard edge
 
-The local application rail is `*.app.kayage.co → 10.10.30.237 (NPM) → 10.10.30.102:80 (Traefik)`. NPM terminates a dedicated Let's Encrypt wildcard certificate issued through Cloudflare DNS-01. RouterOS and NPM are one-time external resources; each application owns only its Kubernetes Ingress in GitOps.
+The local application rail is `*.app.kayage.co → 10.10.30.237 (NPM) → 10.10.30.102:80 (Traefik)`. NPM terminates a dedicated Let's Encrypt wildcard certificate issued through Cloudflare DNS-01 by checksum-pinned lego and uploaded through the NPM API. RouterOS and NPM are one-time external resources; each application owns only its Kubernetes Ingress in GitOps.
 
 ## Apply and verify
 
@@ -28,4 +28,4 @@ kubectl --kubeconfig .local/kubeconfig-k3s-01 -n argocd get application edge-smo
 kubectl --kubeconfig .local/kubeconfig-k3s-01 -n edge-smoke describe ingress edge-smoke
 ```
 
-After rebuilding NPM or the router, rerun `apply`; ownership markers let it recreate or update only platform resources. Certificate renewal remains NPM's responsibility. The preflight confirms the Cloudflare token is active and apply refuses a public `*.app.kayage.co` record, preserving local-only exposure. If wildcard routing is ever unsupported after an upgrade, stop and implement the documented per-app API fallback rather than weakening conflict or public-exposure guards.
+After rebuilding NPM or the router, rerun `apply`; ownership markers let it recreate or update only platform resources. The apply workflow renews the certificate through lego when it enters the 30-day renewal window and uploads it to NPM. The preflight confirms the Cloudflare token is active and apply refuses a public `*.app.kayage.co` record, preserving local-only exposure. If wildcard routing is ever unsupported after an upgrade, stop and implement the documented per-app API fallback rather than weakening conflict or public-exposure guards.

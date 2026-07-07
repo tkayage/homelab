@@ -96,17 +96,45 @@ reconcile_dns() {
 }
 
 reconcile_certificate() {
-  local certificates payload result
+  local certificates payload result archive lego data cert key issuer out status
   certificates="$(npm_request GET '/nginx/certificates')"
-  CERT_ID="$(jq -r --arg w '*.app.kayage.co' '.[] | select(.provider == "letsencrypt" and (.domain_names | index($w))) | .id' <<<"$certificates" | head -1)"
+  CERT_ID="$(jq -r --arg n "$OWNER *.app.kayage.co" '.[] | select(.nice_name == $n and (.domain_names | index("*.app.kayage.co"))) | .id' <<<"$certificates" | head -1)"
+  archive="$ROOT/.local/downloads/lego_v5.2.2_linux_amd64.tar.gz"
+  lego="$ROOT/.local/bin/lego"
+  if [[ ! -x "$lego" ]]; then
+    mkdir -p "$ROOT/.local/downloads" "$ROOT/.local/bin"
+    if [[ ! -s "$archive" ]]; then
+      curl -fL --retry 5 -o "$archive" 'https://github.com/go-acme/lego/releases/download/v5.2.2/lego_v5.2.2_linux_amd64.tar.gz'
+    fi
+    echo "018de6d3f2da09630caa2fbbe8c6aa459323ad0ac0a053d0e808268914b38a8b  $archive" | sha256sum -c - >/dev/null
+    tar -xOf "$archive" lego >"$lego"
+    chmod 0755 "$lego"
+  fi
+  data="$ROOT/.local/lego"
+  mkdir -p "$data"
+  chmod 700 "$data"
+  export CF_DNS_API_TOKEN="$CLOUDFLARE_API_TOKEN"
+  "$lego" run --path "$data" --email "$NPM_USERNAME" --dns cloudflare \
+    --domains '*.app.kayage.co' --accept-tos >/dev/null
+  cert="$data/certificates/_.app.kayage.co.crt"
+  key="$data/certificates/_.app.kayage.co.key"
+  issuer="$data/certificates/_.app.kayage.co.issuer.crt"
+  [[ -s "$cert" && -s "$key" && -s "$issuer" ]] || die "lego did not produce the wildcard certificate files"
   if [[ -z "$CERT_ID" ]]; then
-    payload="$(jq -n --arg token "$CLOUDFLARE_API_TOKEN" --arg owner "$OWNER" '{
-      provider:"letsencrypt", nice_name:($owner+" *.app.kayage.co"), domain_names:["*.app.kayage.co"],
-      meta:{dns_challenge:true,dns_provider:"cloudflare",
-      dns_provider_credentials:("dns_cloudflare_api_token="+$token),propagation_seconds:30,key_type:"ecdsa"}}')"
+    payload="$(jq -n --arg owner "$OWNER" '{provider:"other",nice_name:($owner+" *.app.kayage.co"),domain_names:["*.app.kayage.co"],meta:{}}')"
     result="$(npm_request POST '/nginx/certificates' "$payload")"
     CERT_ID="$(jq -r .id <<<"$result")"
   fi
+  out="$(mktemp "$ROOT/.local/npm-upload.XXXXXX")"; chmod 600 "$out"
+  status="$(curl "${NPM_CURL[@]}" -o "$out" -w '%{http_code}' -X POST \
+    -H "Authorization: Bearer $NPM_TOKEN" \
+    -F "certificate=@$cert" -F "certificate_key=@$key" -F "intermediate_certificate=@$issuer" \
+    "$NPM_URL/nginx/certificates/$CERT_ID/upload")"
+  if [[ ! "$status" =~ ^2 ]]; then
+    message="$(jq -r '.error.message // "certificate upload failed"' "$out" 2>/dev/null || true)"
+    rm -f "$out"; die "NPM certificate upload failed ($status): $message"
+  fi
+  rm -f "$out"
   [[ "$CERT_ID" =~ ^[0-9]+$ ]] || die "NPM certificate reconciliation returned no id"
 }
 

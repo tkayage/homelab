@@ -11,6 +11,7 @@
   "tls": {
     "provider": "letsencrypt",
     "challenge": "cloudflare-dns-01",
+    "issuer_client": "lego-v5.2.2",
     "domains": ["*.app.kayage.co"],
     "minimum_valid_days": 21
   },

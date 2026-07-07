@@ -2,7 +2,7 @@
 phase: 04-local-dns-proxy-and-tls
 plan: 01
 status: blocked
-updated: 2026-07-07T17:43:00Z
+updated: 2026-07-07T18:01:00Z
 ---
 
 # Phase 4 Permission Checkpoint
@@ -14,16 +14,15 @@ updated: 2026-07-07T17:43:00Z
 - Cloudflare token is active and can read the `kayage.co` zone; no public wildcard record exists.
 - Static suite passes 7 checks.
 
-## Blocking permissions
+## Permission status
 
-- RouterOS user `homelab` belongs to `read` and has explicit `!write`; creating the labeled static DNS regex returns `not enough permissions (9)`.
-- NPM user `homelab` has `proxy_hosts=view` and `certificates=view`; valid create requests are hidden as 404 by NPM authorization.
+- RouterOS user `homelab` is now `full`; required DNS write access is available.
+- NPM user `homelab` now has `proxy_hosts=manage` and `certificates=manage`.
+- The Cloudflare token is active and can read `kayage.co`, but creating the `_acme-challenge.app.kayage.co` TXT record returns HTTP 403 / Cloudflare code 10000. It lacks effective Zone DNS Edit access.
 
 ## Required operator action
 
-1. Grant the RouterOS `homelab` automation identity REST read/write access sufficient to manage `/ip/dns/static` (prefer a dedicated least-privilege group).
-2. In NPM, change user `homelab` permissions for **Proxy Hosts** and **SSL Certificates** from View to Manage.
-3. Keep the credential values in the existing `/home/tonny/.config/homelab/mikrotik.env` and `npm.env` files; no new secrets are needed if the same identities are elevated.
+Grant the token in `/home/tonny/.config/homelab/cloudflare.env` **Zone → DNS → Edit** and **Zone → Zone → Read**, restricted to `kayage.co`. Replace the token value in that file if a new token is created.
 
 ## Resume command
 
@@ -31,4 +30,4 @@ updated: 2026-07-07T17:43:00Z
 bash scripts/local-edge.sh apply
 ```
 
-After apply succeeds, continue with `prove-zero-touch` and the live suite. No RouterOS or NPM mutation occurred before this checkpoint.
+After apply succeeds, continue with `prove-zero-touch` and the live suite. No persistent RouterOS, NPM, or Cloudflare edge mutation occurred before this checkpoint.

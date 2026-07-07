@@ -5,7 +5,7 @@ milestone_name: End-to-End Homelab Deployment
 current_phase: 4
 current_phase_name: Local DNS, Proxy, and TLS
 status: blocked
-last_updated: "2026-07-07T17:43:00Z"
+last_updated: "2026-07-07T18:01:00Z"
 last_activity: 2026-07-07
 last_activity_desc: Phase 2 complete, transitioned to Phase 3
 progress:
@@ -22,5 +22,5 @@ progress:
 
 Phase: 4 of 8 (Local DNS, Proxy, and TLS)
 Plan: Not started
-Status: Blocked on RouterOS and NPM write permissions
-Last activity: 2026-07-07 — Phase 4 GitOps smoke healthy; external edge credentials verified read-only
+Status: Blocked on Cloudflare DNS Edit permission
+Last activity: 2026-07-07 — RouterOS/NPM elevated; Cloudflare DNS-01 write rejected with 403
