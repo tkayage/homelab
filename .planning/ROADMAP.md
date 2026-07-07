@@ -171,7 +171,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure Design and Prerequisites | 9/9 | Complete    | 2026-07-07 |
-| 2. Reproducible k3s Foundation | 1/1 | Complete   | 2026-07-07 |
+| 2. Reproducible k3s Foundation | 1/1 | Complete    | 2026-07-07 |
 | 3. GitOps and Secrets Bootstrap | 0/TBD | Not started | - |
 | 4. Local DNS, Proxy, and TLS | 0/TBD | Not started | - |
 | 5. Shared Stateful Services | 0/TBD | Not started | - |

@@ -8,10 +8,10 @@
 
 ### Foundation
 
-- [ ] **INFRA-01**: Operator can reproducibly provision a single-node k3s VM on Proxmox.
-- [ ] **INFRA-02**: k3s starts automatically and remains disposable without risking persistent data.
+- [x] **INFRA-01**: Operator can reproducibly provision a single-node k3s VM on Proxmox.
+- [x] **INFRA-02**: k3s starts automatically and remains disposable without risking persistent data.
 - [x] **INFRA-03**: Infrastructure configuration defines explicit network, CPU, memory, and storage allocations.
-- [ ] **INFRA-04**: Operator can rebuild the k3s VM from documented automation.
+- [x] **INFRA-04**: Operator can rebuild the k3s VM from documented automation.
 
 ### GitOps and Images
 
@@ -97,10 +97,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 2 | Pending |
-| INFRA-02 | Phase 2 | Pending |
+| INFRA-01 | Phase 2 | Complete |
+| INFRA-02 | Phase 2 | Complete |
 | INFRA-03 | Phase 1 | Complete |
-| INFRA-04 | Phase 2 | Pending |
+| INFRA-04 | Phase 2 | Complete |
 | GITOPS-01 | Phase 3 | Pending |
 | GITOPS-02 | Phase 3 | Pending |
 | GITOPS-03 | Phase 6 | Pending |
