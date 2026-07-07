@@ -35,6 +35,8 @@ live_tests() {
   pass=$((pass + 1))
   [[ "$(jq -r '.headers["x-forwarded-proto"]' <<<"$response")" == https ]]
   pass=$((pass + 1))
+  [[ "$(jq -r '.headers["x-forwarded-for"]' <<<"$response")" != null ]]
+  pass=$((pass + 1))
   [[ "$(jq -r '.headers["x-forwarded-host"]' <<<"$response")" == "$HOST" ]]
   pass=$((pass + 1))
   cert="$(mktemp)"
@@ -42,9 +44,9 @@ live_tests() {
   check openssl x509 -in "$cert" -noout -checkhost "$HOST"
   check openssl x509 -in "$cert" -noout -checkend $((21 * 86400))
   rm -f "$cert"
-  headers="$(curl --http1.1 -sS -D - -o /dev/null --resolve "$HOST:443:$NPM_IP" \
+  headers="$(curl --http1.1 --max-time 3 -sS -D - -o /dev/null --resolve "$HOST:443:$NPM_IP" \
     -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' \
-    -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' "https://$HOST/ws" || true)"
+    -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' "https://$HOST/ws" 2>/dev/null || true)"
   rg -q '^HTTP/1.1 101' <<<"$headers"
   pass=$((pass + 1))
   bytes=$((4 * 1024 * 1024))

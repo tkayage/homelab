@@ -115,7 +115,7 @@ reconcile_certificate() {
   chmod 700 "$data"
   export CF_DNS_API_TOKEN="$CLOUDFLARE_API_TOKEN"
   "$lego" run --path "$data" --email "$NPM_USERNAME" --dns cloudflare \
-    --domains '*.app.kayage.co' --accept-tos >/dev/null
+    --dns.resolvers '1.1.1.1:53' --domains '*.app.kayage.co' --accept-tos >/dev/null
   cert="$data/certificates/_.app.kayage.co.crt"
   key="$data/certificates/_.app.kayage.co.key"
   issuer="$data/certificates/_.app.kayage.co.issuer.crt"
@@ -218,7 +218,7 @@ spec:
                 port:
                   name: http
 EOF
-  printf '  - ingress-lifecycle.yaml\n' >>"$worktree/apps/edge-smoke/kustomization.yaml"
+  sed -i '/^  - ingress.yaml$/a\  - ingress-lifecycle.yaml' "$worktree/apps/edge-smoke/kustomization.yaml"
   git -C "$worktree" add apps/edge-smoke
   git -C "$worktree" commit -m 'test: add zero-touch edge hostname'
   commit="$(git -C "$worktree" rev-parse HEAD)"

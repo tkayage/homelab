@@ -1,6 +1,6 @@
 # Local wildcard edge
 
-The local application rail is `*.app.kayage.co → 10.10.30.237 (NPM) → 10.10.30.102:80 (Traefik)`. NPM terminates a dedicated Let's Encrypt wildcard certificate issued through Cloudflare DNS-01 by checksum-pinned lego and uploaded through the NPM API. RouterOS and NPM are one-time external resources; each application owns only its Kubernetes Ingress in GitOps.
+The local application rail is `*.app.kayage.co → 10.10.30.237 (NPM) → 10.10.30.102:80 (Traefik)`. NPM terminates a dedicated Let's Encrypt wildcard certificate issued through Cloudflare DNS-01 by checksum-pinned lego and uploaded through the NPM API. Traefik trusts forwarded headers only from NPM's `/32` address. RouterOS and NPM are one-time external resources; each application owns only its Kubernetes Ingress in GitOps.
 
 ## Apply and verify
 
