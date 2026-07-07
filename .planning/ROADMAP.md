@@ -98,7 +98,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 **Requirements**: SERV-01, SERV-02, SERV-03, SERV-04, SERV-05, SERV-06, SERV-07
 **Success Criteria** (what must be TRUE):
 
-  1. Postgres, Valkey, NATS/JetStream, and Debezium run as native services in separate, resource-bounded LXCs.
+  1. Postgres runs natively in a dedicated LXC, while Valkey, NATS/JetStream, and Debezium run with explicit limits in one dedicated Compose VM.
   2. A k3s test workload reaches every shared service through stable service names rather than hard-coded addresses.
   3. Debezium replication-slot retention and NATS storage limits are configured and observable.
   4. Applications can use the existing Zitadel deployment through its valid-TLS hostname.

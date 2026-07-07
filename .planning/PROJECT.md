@@ -15,7 +15,7 @@ Push to git → app is live at `myapp.yourdomain.com` with valid TLS, no manual 
 **Target features:**
 - Provision a single-node k3s VM on the Proxmox MS-01
 - Deploy GitOps and integrate GHCR image builds and pulls
-- Provision Postgres, Valkey/Redis, Debezium, and NATS shared-service LXCs
+- Provision a dedicated Postgres LXC and a dedicated Compose VM for Valkey, Debezium, and NATS/JetStream
 - Integrate the existing Zitadel LXC and LAN-accessible shared services
 - Automate local DNS, Nginx Proxy Manager routing, and Cloudflare DNS-01 TLS
 - Support explicit opt-in public exposure through the AWS Mikrotik
@@ -36,7 +36,7 @@ Push to git → app is live at `myapp.yourdomain.com` with valid TLS, no manual 
 - [ ] Per-project scaffolding tool: run once in any project to generate manifests/pipeline config and register it with the GitOps repo
 - [ ] Automatic local exposure (default): Mikrotik LAN DNS static entry + Nginx Proxy Manager proxy host + valid TLS cert (Cloudflare DNS-01) created per app
 - [ ] Opt-in public exposure: Cloudflare DNS record pointing at the AWS Mikrotik public IP, traffic forwarded downstream to NPM → k3s ingress
-- [ ] Shared services provisioned as one LXC per service on Proxmox: Postgres, caching (Redis/Valkey), Debezium, NATS + JetStream — using native binaries where available, not Docker-in-LXC
+- [ ] Shared services provisioned on Proxmox: Postgres in a dedicated native-service LXC; Valkey, Debezium, and NATS + JetStream in one dedicated Docker Compose VM
 - [ ] Existing Zitadel LXC integrated as-is (not re-provisioned) — apps can use it for auth
 - [ ] Apps in k3s reach shared services over the LAN
 - [ ] One real app deployed end-to-end through the pipeline (the success gate for v1)
@@ -45,7 +45,7 @@ Push to git → app is live at `myapp.yourdomain.com` with valid TLS, no manual 
 
 - Multi-node / HA k3s — single MS-01; multi-VM on one host adds complexity without real hardware redundancy; revisit if nodes are added
 - Stateful services inside k3s (operators like CloudNativePG) — state lives in LXCs so the cluster stays disposable
-- Docker-in-LXC for shared services — nesting/apparmor quirks; native binaries preferred
+- Docker-in-LXC for shared services — Docker workloads use a dedicated VM to avoid nesting/AppArmor fragility
 - Self-hosted container registry — GHCR is free and removes infra to run; revisit if egress/privacy becomes an issue
 - Full-platform disaster-recovery reproducibility — v1 success is one app live end-to-end; polish and full rebuild-from-code come after
 - Monitoring/observability stack — not discussed for v1; capture as a future milestone
@@ -82,8 +82,8 @@ Push to git → app is live at `myapp.yourdomain.com` with valid TLS, no manual 
 |----------|-----------|---------|
 | GitOps (ArgoCD/Flux) over CLI or CI-push deploys | Git as source of truth; scaffold once, every push deploys | — Pending |
 | Apps in k3s, state outside k3s | Cluster stays disposable; rebuilding k3s never risks data | — Pending |
-| One LXC per shared service (Postgres, Redis, Debezium, NATS) | Minimal overhead, per-service Proxmox snapshots; user preference over single Docker VM | — Pending |
-| Native binaries in LXC, no Docker-in-LXC | Avoids nesting/apparmor quirks that break on Proxmox upgrades | — Pending |
+| Dedicated Postgres LXC; shared Compose VM for Valkey, Debezium, and NATS | Isolate the durable database while consolidating supporting services without Docker-in-LXC | — Pending |
+| Docker only in a dedicated VM, never Docker-in-LXC | Avoids nesting/AppArmor quirks while retaining Compose operational simplicity | — Pending |
 | GHCR for container images | Free, zero infra to run, integrates with git hosting | — Pending |
 | Single k3s VM on the one MS-01 | Multi-VM on one host = complexity without real redundancy | — Pending |
 | Split DNS: Mikrotik static entries for LAN, Cloudflare for public | Local apps resolve locally, no hostname leakage; public opt-in via AWS Mikrotik | — Pending |

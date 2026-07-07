@@ -33,9 +33,9 @@
 ### Shared Services
 
 - [ ] **SERV-01**: Postgres runs as a native service in a dedicated Proxmox LXC.
-- [ ] **SERV-02**: Valkey or Redis runs as a native service in a dedicated LXC.
-- [ ] **SERV-03**: NATS with JetStream runs as a native service in a dedicated LXC with bounded storage.
-- [ ] **SERV-04**: Debezium runs in a dedicated LXC with controlled replication-slot WAL growth.
+- [ ] **SERV-02**: Valkey or Redis runs in the dedicated shared-services Compose VM with explicit memory limits.
+- [ ] **SERV-03**: NATS with JetStream runs in the dedicated shared-services Compose VM with bounded persistent storage.
+- [ ] **SERV-04**: Debezium runs in the dedicated shared-services Compose VM with controlled replication-slot WAL growth.
 - [ ] **SERV-05**: k3s applications reach shared services through stable LAN names.
 - [ ] **SERV-06**: Applications integrate with the existing Zitadel deployment without replacing it.
 - [ ] **SERV-07**: Postgres has a verified off-host backup and restore procedure.
@@ -86,7 +86,7 @@
 |---------|--------|
 | Multi-node or HA k3s | One physical host provides no real hardware redundancy |
 | Stateful services inside k3s | The cluster must remain disposable without risking persistent data |
-| Docker-in-LXC | Avoid Proxmox nesting and AppArmor fragility |
+| Docker-in-LXC | Docker Compose runs in a dedicated VM to avoid Proxmox nesting and AppArmor fragility |
 | Self-hosted container registry | GHCR removes infrastructure and maintenance overhead |
 | Service mesh | No v1 requirement justifies its operational complexity |
 | Preview environments | Solo development does not justify per-PR lifecycle overhead |

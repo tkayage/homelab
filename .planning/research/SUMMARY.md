@@ -67,7 +67,7 @@ Create the platform repository, install Argo CD and ApplicationSet, establish SO
 Validate wildcard Mikrotik DNS, NPM wildcard routing, Cloudflare DNS-01 TLS, and Traefik forwarding; implement per-app fallback automation if the spike fails.
 
 ### Phase 4: Shared Services
-Configure Postgres, Valkey, NATS/JetStream, and Debezium in LXCs; integrate Zitadel and expose stable LAN service endpoints to k3s.
+Configure Postgres natively in a dedicated LXC and configure Valkey, NATS/JetStream, and Debezium in a dedicated Compose VM; integrate Zitadel and expose stable LAN service endpoints to k3s.
 
 ### Phase 5: Build Pipeline and Scaffolding
 Build the shared app chart and TypeScript scaffolder, generate CI/GHCR integration, and prove that a push deploys a private image automatically.
