@@ -24,7 +24,7 @@ load_credentials() {
   set +a
   [[ -n "${MIKROTIK_PASSWORD:-}" && -n "${NPM_PASSWORD:-}" && -n "${CLOUDFLARE_API_TOKEN:-}" ]] || die "incomplete edge credentials"
   MT_CURL=(-fsS --max-time 60 --user "$MIKROTIK_USERNAME:$MIKROTIK_PASSWORD")
-  NPM_CURL=(-fsS --max-time 600)
+  NPM_CURL=(-sS --max-time 600)
   [[ "${MIKROTIK_VERIFY_TLS:-true}" == true ]] || MT_CURL+=(-k)
   [[ "${NPM_VERIFY_TLS:-true}" == true ]] || NPM_CURL+=(-k)
 }
@@ -100,10 +100,10 @@ reconcile_certificate() {
   certificates="$(npm_request GET '/nginx/certificates')"
   CERT_ID="$(jq -r --arg w '*.app.kayage.co' '.[] | select(.provider == "letsencrypt" and (.domain_names | index($w))) | .id' <<<"$certificates" | head -1)"
   if [[ -z "$CERT_ID" ]]; then
-    payload="$(jq -n --arg token "$CLOUDFLARE_API_TOKEN" --arg email "$NPM_USERNAME" --arg owner "$OWNER" '{
+    payload="$(jq -n --arg token "$CLOUDFLARE_API_TOKEN" --arg owner "$OWNER" '{
       provider:"letsencrypt", nice_name:($owner+" *.app.kayage.co"), domain_names:["*.app.kayage.co"],
-      meta:{letsencrypt_email:$email,letsencrypt_agree:true,dns_challenge:true,dns_provider:"cloudflare",
-      dns_provider_credentials:("dns_cloudflare_api_token = "+$token),propagation_seconds:30,key_type:"ecdsa"}}')"
+      meta:{dns_challenge:true,dns_provider:"cloudflare",
+      dns_provider_credentials:("dns_cloudflare_api_token="+$token),propagation_seconds:30,key_type:"ecdsa"}}')"
     result="$(npm_request POST '/nginx/certificates' "$payload")"
     CERT_ID="$(jq -r .id <<<"$result")"
   fi
@@ -129,7 +129,15 @@ reconcile_proxy() {
 
 publish_smoke() {
   bash "$ROOT/scripts/gitops-platform.sh" publish >/dev/null
-  kubectl -n argocd annotate application edge-smoke argocd.argoproj.io/refresh=hard --overwrite >/dev/null 2>&1 || true
+  for _ in $(seq 1 60); do
+    if kubectl -n argocd get application edge-smoke >/dev/null 2>&1; then break; fi
+    sleep 3
+  done
+  kubectl -n argocd annotate application edge-smoke argocd.argoproj.io/refresh=hard --overwrite >/dev/null
+  for _ in $(seq 1 60); do
+    if kubectl -n edge-smoke get deployment edge-smoke >/dev/null 2>&1; then break; fi
+    sleep 3
+  done
   kubectl -n edge-smoke rollout status deployment/edge-smoke --timeout=10m
 }
 
@@ -151,9 +159,9 @@ apply_edge() {
   preflight
   assert_no_public_record
   publish_smoke
-  reconcile_dns
   reconcile_certificate
   reconcile_proxy
+  reconcile_dns
   printf 'managed resource IDs (dns/proxy/certificate): %s/%s/%s\n' "$DNS_ID" "$PROXY_ID" "$CERT_ID"
 }
 
