@@ -95,13 +95,51 @@
 
 ## Traceability
 
-Roadmap phase mappings will be populated during roadmap approval.
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| INFRA-01 | Phase 2 | Pending |
+| INFRA-02 | Phase 2 | Pending |
+| INFRA-03 | Phase 1 | Pending |
+| INFRA-04 | Phase 2 | Pending |
+| GITOPS-01 | Phase 3 | Pending |
+| GITOPS-02 | Phase 3 | Pending |
+| GITOPS-03 | Phase 6 | Pending |
+| GITOPS-04 | Phase 6 | Pending |
+| GITOPS-05 | Phase 3 | Pending |
+| GITOPS-06 | Phase 3 | Pending |
+| EDGE-01 | Phase 4 | Pending |
+| EDGE-02 | Phase 4 | Pending |
+| EDGE-03 | Phase 4 | Pending |
+| EDGE-04 | Phase 4 | Pending |
+| EDGE-05 | Phase 4 | Pending |
+| SERV-01 | Phase 5 | Pending |
+| SERV-02 | Phase 5 | Pending |
+| SERV-03 | Phase 5 | Pending |
+| SERV-04 | Phase 5 | Pending |
+| SERV-05 | Phase 5 | Pending |
+| SERV-06 | Phase 5 | Pending |
+| SERV-07 | Phase 5 | Pending |
+| SCAF-01 | Phase 6 | Pending |
+| SCAF-02 | Phase 6 | Pending |
+| SCAF-03 | Phase 6 | Pending |
+| SCAF-04 | Phase 6 | Pending |
+| SCAF-05 | Phase 6 | Pending |
+| SCAF-06 | Phase 6 | Pending |
+| PUBLIC-01 | Phase 7 | Pending |
+| PUBLIC-02 | Phase 7 | Pending |
+| PUBLIC-03 | Phase 7 | Pending |
+| PUBLIC-04 | Phase 7 | Pending |
+| E2E-01 | Phase 8 | Pending |
+| E2E-02 | Phase 8 | Pending |
+| E2E-03 | Phase 8 | Pending |
+| E2E-04 | Phase 8 | Pending |
+| E2E-05 | Phase 8 | Pending |
 
 **Coverage:**
 - v1.0 requirements: 37 total
-- Mapped to phases: 0
-- Unmapped: 37
+- Mapped to phases: 37
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-07-07*
-*Last updated: 2026-07-07 after v1.0 scope approval*
+*Last updated: 2026-07-07 after v1.0 roadmap creation*
