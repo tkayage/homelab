@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitops-smoke
+  labels:
+    app.kubernetes.io/name: gitops-smoke
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gitops-smoke
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gitops-smoke
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.29.0-alpine
+          env:
+            - name: GITOPS_SMOKE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gitops-smoke
+                  key: token
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

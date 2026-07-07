@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmp-sops
+  namespace: argocd
+data:
+  plugin.yaml: |
+    apiVersion: argoproj.io/v1alpha1
+    kind: ConfigManagementPlugin
+    metadata:
+      name: sops-kustomize
+    spec:
+      version: v1.0
+      discover:
+        fileName: kustomization.yaml
+      generate:
+        command: [sh, -c]
+        args:
+          - |
+            set -eu
+            work="$(mktemp -d)"
+            trap 'rm -rf "$work"' EXIT
+            cp -R . "$work/repo"
+            find "$work/repo" -type f -name '*.enc.yaml' |
+              while IFS= read -r encrypted; do
+                decrypted="${encrypted%.enc.yaml}.yaml"
+                sops --decrypt --output "$decrypted" "$encrypted"
+                rm -f "$encrypted"
+              done
+            kustomize build "$work/repo"
