@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  namespace: shared-services
+spec:
+  ports:
+    - name: tcp-nats
+      port: 4222
+      targetPort: 4222
+      protocol: TCP
+    - name: http-nats
+      port: 8222
+      targetPort: 8222
+      protocol: TCP

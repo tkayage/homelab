@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: zitadel
+  namespace: shared-services
+spec:
+  ports:
+    - name: https-zitadel
+      port: 443
+      targetPort: 443
+      protocol: TCP
+    - name: http-zitadel
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

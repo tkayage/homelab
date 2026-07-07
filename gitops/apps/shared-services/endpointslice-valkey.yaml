@@ -1,0 +1,18 @@
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: valkey-1
+  namespace: shared-services
+  labels:
+    kubernetes.io/service-name: valkey
+    endpointslice.kubernetes.io/managed-by: homelab-gitops
+addressType: IPv4
+ports:
+  - name: tcp-valkey
+    protocol: TCP
+    port: 6379
+endpoints:
+  - addresses:
+      - "10.10.30.101"
+    conditions:
+      ready: true

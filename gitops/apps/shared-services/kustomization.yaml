@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - service-postgres.yaml
+  - endpointslice-postgres.yaml
+  - service-valkey.yaml
+  - endpointslice-valkey.yaml
+  - service-nats.yaml
+  - endpointslice-nats.yaml
+  - service-debezium.yaml
+  - endpointslice-debezium.yaml
+  - service-zitadel.yaml
+  - endpointslice-zitadel.yaml

@@ -1,0 +1,21 @@
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: zitadel-1
+  namespace: shared-services
+  labels:
+    kubernetes.io/service-name: zitadel
+    endpointslice.kubernetes.io/managed-by: homelab-gitops
+addressType: IPv4
+ports:
+  - name: https-zitadel
+    protocol: TCP
+    port: 443
+  - name: http-zitadel
+    protocol: TCP
+    port: 8080
+endpoints:
+  - addresses:
+      - "10.10.30.236"
+    conditions:
+      ready: true

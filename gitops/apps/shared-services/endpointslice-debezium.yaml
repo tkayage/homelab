@@ -1,0 +1,18 @@
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: debezium-1
+  namespace: shared-services
+  labels:
+    kubernetes.io/service-name: debezium
+    endpointslice.kubernetes.io/managed-by: homelab-gitops
+addressType: IPv4
+ports:
+  - name: http-debezium
+    protocol: TCP
+    port: 8080
+endpoints:
+  - addresses:
+      - "10.10.30.101"
+    conditions:
+      ready: true
