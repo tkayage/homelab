@@ -73,7 +73,9 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   3. No persistent application data is stored as a cluster dependency.
   4. Operator can destroy and recreate the VM while restoring cluster access from the documented bootstrap path.
 
-**Plans**: TBD
+**Plans**: 0/1 plans executed
+
+- [ ] 02-01-PLAN.md
 
 ### Phase 3: GitOps and Secrets Bootstrap
 
@@ -169,7 +171,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure Design and Prerequisites | 9/9 | Complete    | 2026-07-07 |
-| 2. Reproducible k3s Foundation | 0/TBD | Not started | - |
+| 2. Reproducible k3s Foundation | 0/1 | Planned    |  |
 | 3. GitOps and Secrets Bootstrap | 0/TBD | Not started | - |
 | 4. Local DNS, Proxy, and TLS | 0/TBD | Not started | - |
 | 5. Shared Stateful Services | 0/TBD | Not started | - |
