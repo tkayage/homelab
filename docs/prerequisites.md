@@ -37,7 +37,7 @@ Capacity evidence came from a read-only Proxmox guest, node, and storage invento
 | `site.proxmox.physical_cores` | 14, verified | Node CPU topology |
 | `site.proxmox.physical_threads` | 20, verified | Node CPU topology |
 | `site.network.bridge` | `vmbr0`, verified | Proxmox network observation |
-| `site.network.vlan` | blocked | Tagged VLAN or explicitly untagged operation still requires confirmation before provisioning |
+| `site.network.vlan` | `untagged`, verified | Read-only Proxmox network observation found no VLAN tag and no VLAN-aware setting on active `vmbr0` |
 | `site.network.subnet` | `10.10.30.0/24`, verified | Proxmox and RouterOS observation |
 | `site.network.gateway` | `10.10.30.1`, verified | RouterOS observation |
 | `site.network.dns_suffix` | `app.kayage.co`, verified | Operator approval |
@@ -69,4 +69,4 @@ These checks prove the read paths used to gather evidence. Later mutation phases
 
 ## Completion gate
 
-The three-guest topology and capacity policies pass their measured checks. Provisioning remains blocked until the platform LAN is confirmed as tagged with a specific VLAN or explicitly untagged, Plan 01-06 updates the validator for this topology, and that validator passes. All Phase 1 activity remains observational and documentation-only.
+The three-guest topology, capacity policies, verified untagged LAN attachment, Plan 01-06 topology validator, and Plan 01-07 final gate have passed their recorded checks. Storage-headroom derivation remains pending until Plan 01-08 records measured usable pool capacity and validates the resulting arithmetic; Phase 1 must then be re-verified. All Phase 1 activity remains observational and documentation-only: no guest, network, or existing service was provisioned or mutated.
