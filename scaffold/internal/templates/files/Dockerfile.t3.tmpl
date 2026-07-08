@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1
+# Multi-stage Next.js standalone build (output: 'standalone').
+# Base image pinned by digest (threat T-06-04): node:22-alpine resolved 2026-07-08.
+# Update: `docker buildx imagetools inspect node:22-alpine`, then replace the digest.
+ARG NODE_IMAGE=node:22-alpine@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2
+
+FROM ${NODE_IMAGE} AS deps
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+FROM ${NODE_IMAGE} AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+FROM ${NODE_IMAGE} AS runner
+WORKDIR /app
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT={{.Port}} HOSTNAME=0.0.0.0
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser  --system --uid 1001 nextjs
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+USER nextjs
+EXPOSE {{.Port}}
+CMD ["node", "server.js"]

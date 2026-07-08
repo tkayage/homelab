@@ -1,0 +1,7 @@
+// pages/api/health.ts — Next.js Pages Router health handler.
+// Returns HTTP 200 for the readiness/liveness httpGet probe on /api/health.
+import type { NextApiRequest, NextApiResponse } from 'next';
+
+export default function handler(_req: NextApiRequest, res: NextApiResponse) {
+  res.status(200).send('ok');
+}

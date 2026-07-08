@@ -1,0 +1,7 @@
+// app/api/health/route.ts — Next.js App Router health handler.
+// Returns HTTP 200 for the readiness/liveness httpGet probe on /api/health.
+export const dynamic = 'force-dynamic';
+
+export function GET() {
+  return new Response('ok', { status: 200 });
+}
