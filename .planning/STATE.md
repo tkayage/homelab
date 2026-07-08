@@ -2,27 +2,25 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: End-to-End Homelab Deployment
-current_phase: 6
-current_phase_name: Build Pipeline and Project Scaffolding
-status: in_progress
+current_phase: 06
+current_phase_name: build-pipeline-and-project-scaffolding
+status: executing
 stopped_at: Advancing to Phase 6 (autonomous). Phase 5 SERV-01..06 verified; SERV-07 deferred-accepted pending operator NAS grant (not a Phase 6 dependency)
-last_updated: "2026-07-08T11:45:00.000Z"
-last_activity: 2026-07-08
-last_activity_desc: SERV-07 restore live-verified (disposable scratch); deferred off-host NAS write pending one operator NAS grant; resumed autonomous into Phase 6
+last_updated: "2026-07-08T13:08:22.109Z"
 progress:
   total_phases: 8
-  completed_phases: 4
-  total_plans: 17
-  completed_plans: 16
-  percent: 50
+  completed_phases: 5
+  total_plans: 25
+  completed_plans: 17
+  percent: 63
 ---
 
 # Project State
 
 ## Current Position
 
-Phase: 6 — Build Pipeline and Project Scaffolding (autonomous, started 2026-07-08)
-Status: In progress — discuss → plan → execute
+Phase: 06 (build-pipeline-and-project-scaffolding) — EXECUTING
+Status: Executing Phase 06
 
 Phase 5 (Shared Stateful Services): SERV-01..06 live and verified (postgres-01, Valkey,
 NATS/JetStream, Debezium healthy; CDC pipeline proven; k3s discovery + Zitadel OIDC pass
