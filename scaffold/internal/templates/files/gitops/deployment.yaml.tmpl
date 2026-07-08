@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Slug}}
+  labels:
+    app.kubernetes.io/name: {{.Slug}}
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{.Slug}}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{.Slug}}
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: app
+          image: ghcr.io/{{.GHCROrg}}/{{.Slug}}
+          ports:
+            - name: http
+              containerPort: {{.Port}}
+          readinessProbe:
+{{- if .IsT3}}
+            httpGet:
+              path: /api/health
+              port: http
+{{- else}}
+            tcpSocket:
+              port: http
+{{- end}}
+            periodSeconds: 5
+          livenessProbe:
+{{- if .IsT3}}
+            httpGet:
+              path: /api/health
+              port: http
+{{- else}}
+            tcpSocket:
+              port: http
+{{- end}}
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

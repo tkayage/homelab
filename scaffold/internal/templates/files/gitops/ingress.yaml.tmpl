@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{.Slug}}
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: {{.Slug}}.app.kayage.co
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{.Slug}}
+                port:
+                  name: http

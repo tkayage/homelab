@@ -20,6 +20,13 @@
 //     instead of silently no-oping the pod onto :latest.
 package manifests
 
+import (
+	"fmt"
+	"path/filepath"
+
+	"github.com/tkayage/homelab/scaffold/internal/templates"
+)
+
 // Data is the render context for the per-app gitops manifest set. A single slug
 // drives the manifest names, labels, host, and image path; GHCROrg + Slug form
 // the image string shared by the Deployment and the kustomization transformer.
@@ -42,9 +49,23 @@ type Data struct {
 	PullAuthB64  string
 }
 
-// Render writes the per-app gitops manifest files into dir.
-//
-// Stub for the TDD RED phase — implemented in the GREEN commit.
+// renderFiles maps each embedded gitops template to its output filename under
+// the app dir. The kustomization + pull-secret entries are added in Task 2.
+var renderFiles = []struct{ tmpl, out string }{
+	{"gitops/deployment.yaml.tmpl", "deployment.yaml"},
+	{"gitops/service.yaml.tmpl", "service.yaml"},
+	{"gitops/ingress.yaml.tmpl", "ingress.yaml"},
+}
+
+// Render renders every gitops manifest template against data and writes the
+// results into dir (typically apps/<slug>/). It does not create dir; the caller
+// (the 06-07 orchestrator) is responsible for the directory.
 func Render(dir string, data Data) error {
+	for _, f := range renderFiles {
+		dest := filepath.Join(dir, f.out)
+		if err := templates.RenderToFile(f.tmpl, data, dest); err != nil {
+			return fmt.Errorf("render %s: %w", f.out, err)
+		}
+	}
 	return nil
 }
