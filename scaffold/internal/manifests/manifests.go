@@ -50,11 +50,19 @@ type Data struct {
 }
 
 // renderFiles maps each embedded gitops template to its output filename under
-// the app dir. The kustomization + pull-secret entries are added in Task 2.
+// the app dir.
+//
+// pull-secret is written as the plaintext pull-secret.yaml — the DECRYPTED name
+// the kustomization references. Plan 06-06 encrypts it in place to
+// pull-secret.enc.yaml (the CMP reverses that at build time). Rendering the
+// plaintext name here is what makes `kustomize build` succeed offline in the
+// test (it simulates the CMP's post-decrypt state).
 var renderFiles = []struct{ tmpl, out string }{
 	{"gitops/deployment.yaml.tmpl", "deployment.yaml"},
 	{"gitops/service.yaml.tmpl", "service.yaml"},
 	{"gitops/ingress.yaml.tmpl", "ingress.yaml"},
+	{"gitops/kustomization.yaml.tmpl", "kustomization.yaml"},
+	{"gitops/pull-secret.yaml.tmpl", "pull-secret.yaml"},
 }
 
 // Render renders every gitops manifest template against data and writes the
