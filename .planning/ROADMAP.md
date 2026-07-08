@@ -150,7 +150,33 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   4. The scaffolder reports generated files, deployment health, and the expected valid-TLS URL.
   5. A generic non-T3 container can use the same deployment contract without adopting T3-specific build logic.
 
-**Plans**: TBD
+**Plans**: 8 plans
+
+**Wave 1**
+
+- [ ] 06-01-PLAN.md — Dev-box tooling (sops, kustomize, actionlint) + scaffolder Go module + cobra skeleton
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 06-02-PLAN.md — slug derivation/validation + T3/non-T3 detection (TDD)
+- [ ] 06-03-PLAN.md — template embed/Render + T3 Dockerfile + health-route templates
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 06-04-PLAN.md — CI workflow template (two-job build→bump, actionlint)
+- [ ] 06-05-PLAN.md — gitops manifest templates + SOPS pull-secret + kustomize build
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 06-06-PLAN.md — gitops repo integration (clone/encrypt/commit/push, os/exec git+sops)
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 06-07-PLAN.md — CLI orchestration + SCAF-05 report (end-to-end)
+
+**Wave 6** *(blocked on Wave 5)*
+
+- [ ] 06-08-PLAN.md — fixture validation (scaffold-verify.sh) + operator-token checkpoint
 
 ### Phase 7: Opt-in Public Exposure
 
@@ -190,6 +216,6 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 | 3. GitOps and Secrets Bootstrap | 1/1 | Complete | 2026-07-07 |
 | 4. Local DNS, Proxy, and TLS | 1/1 | Complete | 2026-07-07 |
 | 5. Shared Stateful Services | 5/5 | In progress (SERV-07 pending) | - |
-| 6. Build Pipeline and Project Scaffolding | 0/TBD | Not started | - |
+| 6. Build Pipeline and Project Scaffolding | 0/8 | Planned | - |
 | 7. Opt-in Public Exposure | 0/TBD | Not started | - |
 | 8. End-to-End Validation and Operations | 0/TBD | Not started | - |

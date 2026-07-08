@@ -1,8 +1,8 @@
 ---
 phase: 6
 slug: build-pipeline-and-project-scaffolding
-status: draft
-nyquist_compliant: false
+status: planned
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-07-08
 ---
@@ -42,7 +42,22 @@ created: 2026-07-08
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | Status |
 |---------|------|------|-------------|-----------|-------------------|--------|
-| 06-…    | …    | …    | …           | …         | `…`               | ⬜ pending |
+| 06-01-T1 | 06-01 | 1 | SCAF-01 (setup) | env/tooling | `command -v sops && command -v kustomize && command -v actionlint && sops --version && kustomize version` | ⬜ pending |
+| 06-01-T2 | 06-01 | 1 | SCAF-01 (setup) | build | `go build -C scaffold ./... && go vet -C scaffold ./... && go run -C scaffold ./cmd/scaffold --help` | ⬜ pending |
+| 06-02-T1 | 06-02 | 2 | SCAF-01 | unit (TDD) | `go test -C scaffold ./internal/slug/...` | ⬜ pending |
+| 06-02-T2 | 06-02 | 2 | SCAF-06 | unit (TDD, fixtures) | `go test -C scaffold ./internal/detect/...` | ⬜ pending |
+| 06-03-T1 | 06-03 | 2 | SCAF-02 | unit | `go test -C scaffold ./internal/templates/...` | ⬜ pending |
+| 06-03-T2 | 06-03 | 2 | SCAF-02 | golden | `go test -C scaffold ./internal/templates/...` | ⬜ pending |
+| 06-04-T1 | 06-04 | 3 | GITOPS-03, SCAF-02 | build | `go build -C scaffold ./internal/templates/...` | ⬜ pending |
+| 06-04-T2 | 06-04 | 3 | GITOPS-04, SCAF-02 | golden + actionlint | `go test -C scaffold ./internal/templates/...` | ⬜ pending |
+| 06-05-T1 | 06-05 | 3 | SCAF-03, SCAF-04 | golden | `go test -C scaffold ./internal/manifests/...` | ⬜ pending |
+| 06-05-T2 | 06-05 | 3 | SCAF-03, SCAF-04 | golden + kustomize build | `go test -C scaffold ./internal/manifests/...` | ⬜ pending |
+| 06-06-T1 | 06-06 | 4 | SCAF-03 | integration (bare-repo) | `go test -C scaffold ./internal/gitops/... -run TestGit` | ⬜ pending |
+| 06-06-T2 | 06-06 | 4 | SCAF-04 | integration (sops round-trip) | `go test -C scaffold ./internal/gitops/... -run TestSops` | ⬜ pending |
+| 06-07-T1 | 06-07 | 5 | SCAF-05 | unit (stdout capture) | `go test -C scaffold ./internal/report/...` | ⬜ pending |
+| 06-07-T2 | 06-07 | 5 | SCAF-01 | integration (end-to-end) | `go test -C scaffold ./internal/scaffolder/... && go build -C scaffold ./... && go vet -C scaffold ./...` | ⬜ pending |
+| 06-08-T1 | 06-08 | 6 | SCAF-06, GITOPS-03, GITOPS-04 | live-ish offline suite | `bash scripts/scaffold-verify.sh all` | ⬜ pending |
+| 06-08-T2 | 06-08 | 6 | GITOPS-04, SCAF-04 | checkpoint:human-verify | operator creates GITOPS_PUSH_TOKEN + classic read:packages token; confirm GHCR private (manual) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
