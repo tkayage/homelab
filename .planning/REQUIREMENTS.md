@@ -36,11 +36,11 @@
 - [x] **SERV-02**: Valkey or Redis runs in the dedicated shared-services Compose VM with explicit memory limits.
 - [x] **SERV-03**: NATS with JetStream runs in the dedicated shared-services Compose VM with bounded persistent storage.
 - [x] **SERV-04**: Debezium runs in the dedicated shared-services Compose VM with controlled replication-slot WAL growth.
-- [ ] **SERV-05**: k3s applications reach shared services through stable LAN names.
-- [ ] **SERV-06**: Applications integrate with the existing Zitadel deployment without replacing it.
+- [x] **SERV-05**: k3s applications reach shared services through stable LAN names.
+- [x] **SERV-06**: Applications integrate with the existing Zitadel deployment without replacing it.
 - [ ] **SERV-07**: Postgres has a verified off-host backup and restore procedure.
 
-> 2026-07-08 (05-05 deployment): SERV-01..04 deployed and live-verified. SERV-05/06 blocked — Argo CD's argocd-cm excludes EndpointSlice, so selectorless Services get no backends (Services created, discovery mechanism proven via manual slice). SERV-07 blocked — NFS backup export absent on NAS + in-container mount unviable. See 05-05-SUMMARY.md.
+> 2026-07-08 (05-05 deployment): SERV-01..06 deployed and live-verified (postgres-01, Valkey, NATS/JetStream, Debezium all healthy; k3s discovery + Zitadel OIDC pass the live test after un-excluding EndpointSlice in argocd-cm). SERV-07 code-ready (host-based backup) but UNVERIFIED — needs two operator actions: create NAS export 10.10.40.2:/volume1/backup/postgres for the Proxmox host, and authorize root SSH to 10.10.30.30. See 05-05-SUMMARY.md.
 
 ### Scaffolding
 
@@ -118,8 +118,8 @@
 | SERV-02 | Phase 5 | Complete |
 | SERV-03 | Phase 5 | Complete |
 | SERV-04 | Phase 5 | Complete |
-| SERV-05 | Phase 5 | In progress |
-| SERV-06 | Phase 5 | In progress |
+| SERV-05 | Phase 5 | Complete |
+| SERV-06 | Phase 5 | Complete |
 | SERV-07 | Phase 5 | In progress |
 | SCAF-01 | Phase 6 | Pending |
 | SCAF-02 | Phase 6 | Pending |

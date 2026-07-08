@@ -2,10 +2,10 @@
 phase: 05-shared-stateful-services
 plan: 05
 status: partial
-one_liner: "Actually deployed the Phase 05 stack for the first time; fixed 11 latent bugs; 4/7 SERV requirements now live and verified, 3 blocked on cross-phase decisions"
+one_liner: "Deployed the Phase 05 stack for the first time; fixed 12 latent bugs; 6/7 SERV requirements live and verified, SERV-07 code-ready but blocked on two operator infra actions"
 verified: 2026-07-08
-requirements_complete: [SERV-01, SERV-02, SERV-03, SERV-04]
-requirements_blocked: [SERV-05, SERV-06, SERV-07]
+requirements_complete: [SERV-01, SERV-02, SERV-03, SERV-04, SERV-05, SERV-06]
+requirements_blocked: [SERV-07]
 ---
 
 # Plan 05-05 Execution Summary
@@ -27,8 +27,11 @@ time against real Proxmox/k3s and fixed every latent bug that surfaced.
   - **Debezium** healthy, connected to Postgres, replication slot `debezium_homelab`
     active (`wal_status=reserved`), heartbeats flowing to JetStream (`DebeziumStream`
     accumulating messages). Full Postgres→Debezium→NATS CDC pipeline proven. **(SERV-04)**
-- **k3s discovery Services** — Argo synced `apps/shared-services` (Synced/Healthy);
-  namespace + 5 selectorless Services (postgres, valkey, nats, debezium, zitadel) exist.
+- **k3s discovery (SERV-05, SERV-06)** — Argo manages namespace + 5 selectorless
+  Services + 5 EndpointSlices (Synced/Healthy). Live test passes: in-cluster workloads
+  reach postgres/valkey/nats/debezium via `*.shared-services.svc.cluster.local` and
+  Zitadel via its EndpointSlice (10.10.30.236) + OIDC discovery. Required un-excluding
+  `EndpointSlice` in `argocd-cm` (see fix #12) and publishing Debezium's 8080.
 
 ## Bugs fixed (all latent — phase was only `fmt`-checked, never deployed)
 
@@ -43,23 +46,26 @@ time against real Proxmox/k3s and fixed every latent bug that surfaced.
 9. `application.properties` + `postgres-platform.sh`: pre-create `dbz_publication` as superuser and set `publication.autocreate.mode=disabled` (least-privilege role can't `CREATE PUBLICATION FOR ALL TABLES`).
 10. `application.properties`: widen sink subjects to `homelab.>` and `__debezium-heartbeat.>` (narrow filter → JetStream `503 No Responders`).
 11. `services-platform.sh` validate: count running via `{{.State}}` template (Compose v5 JSON has no space, old grep always read 0).
+12. `argocd-cm`: un-exclude `discovery.k8s.io/EndpointSlice` (Phase 3 default excluded it, so Argo silently dropped all 5 slices and the selectorless Services had no backends) + publish Debezium 8080 to match its EndpointSlice. **Decision taken by user:** un-exclude in argocd-cm.
 
-## Blocked — need decisions / infra changes (not code I can fix alone)
+## Resolved during this plan (user decisions)
 
-- **SERV-05 / SERV-06 (k8s discovery):** Argo CD's `argocd-cm` `resource.exclusions`
-  (Phase 3 platform default) excludes `Endpoints` **and** `EndpointSlice`. Argo therefore
-  silently drops all 5 EndpointSlices, so the selectorless Services have no backends.
-  Proven root cause: manually applying `endpointslice-postgres` immediately gave the
-  Service `Endpoints: 10.10.30.100:5432`. **Decision needed:** un-exclude `EndpointSlice`
-  in argocd-cm (simple, low cost at homelab scale, makes the committed design work) vs.
-  create the EndpointSlices out-of-band. This modifies a Phase 3 platform artifact.
-- **SERV-07 (backup/restore):** two blockers. (a) The assumed NFS export
-  `10.10.40.2:/volume1/backup/postgres` does not exist — the NAS only exports
-  `/volume1/surveillance` to the Proxmox host. (b) The scripted backup mounts NFS
-  *inside* the unprivileged LXC, which is blocked (feature flags need `root@pam`; the
-  API token got HTTP 403, and NFS-in-unprivileged-LXC is unreliable). **Decision needed:**
-  create a backup export on the NAS + choose a backup host/design (e.g. stream
-  `pg_dumpall` over SSH to an NFS-mounted operator/Proxmox host).
+- **SERV-05 / SERV-06 (k8s discovery):** root cause was Argo's `argocd-cm` excluding
+  `EndpointSlice`. Fixed by `infrastructure/kubernetes/argocd/argocd-cm-patch.yaml`
+  (merge-patched live + wired into `install_argocd`) and restarting the
+  application-controller. All 5 EndpointSlices now Argo-managed; live discovery test
+  passes. Debezium 8080 published to match its advertised endpoint.
+
+## Still blocked — SERV-07 (needs two operator infra actions I cannot perform)
+
+Backup/restore reworked to run **from the Proxmox host** (`pct exec` + host NFS mount;
+`postgres-platform.sh` backup/restore-test). `pg_dumpall` is verified against the live
+DB, but the path is **UNVERIFIED end-to-end** until:
+1. **NAS:** create export `10.10.40.2:/volume1/backup/postgres` allowing the Proxmox
+   host `10.10.30.30` (today the NAS only exports `/volume1/surveillance`).
+2. **Proxmox host:** authorize the operator SSH key for `root@10.10.30.30` (root SSH is
+   currently denied; `tonny` has no `sudo`/`pct`).
+Then run `scripts/postgres-platform.sh backup && scripts/postgres-platform.sh restore-test`.
 
 ## Security note (tech debt)
 

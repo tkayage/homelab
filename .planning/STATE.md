@@ -22,23 +22,23 @@ progress:
 ## Current Position
 
 Phase: 5 — Shared Stateful Services (reopened 2026-07-08)
-Plan: 05-05 — Deploy and validate shared services (partial: 4/7 SERV live, 3 blocked)
-Status: Blocked on two decisions
+Plan: 05-05 — Deploy and validate shared services (6/7 SERV live; SERV-07 blocked)
+Status: Blocked on SERV-07 operator prerequisites only
 
-Live and verified: postgres-01 (LXC 120), Valkey, NATS/JetStream, Debezium all
-running/healthy; CDC pipeline proven (SERV-01..04). 11 latent IaC/script bugs fixed
-during first-ever deployment (see 05-05-SUMMARY.md).
+Live and verified (SERV-01..06): postgres-01 (LXC 120), Valkey, NATS/JetStream,
+Debezium all healthy; CDC pipeline proven; k3s discovery + Zitadel OIDC pass the live
+test (all 5 EndpointSlices Argo-managed after un-excluding EndpointSlice in argocd-cm).
+12 latent IaC/script bugs fixed during the first-ever deployment (see 05-05-SUMMARY.md).
 
-Blocked — awaiting user decision:
-- SERV-05/06 (k8s discovery): Argo CD argocd-cm excludes EndpointSlice → selectorless
-  Services have no backends. Fix = un-exclude EndpointSlice in argocd-cm (Phase 3
-  platform config) OR create slices out-of-band. Mechanism proven via manual slice.
-- SERV-07 (backup): NFS export /volume1/backup/postgres absent on NAS (only
-  /volume1/surveillance → Proxmox host exists) + in-container NFS mount unviable.
-  Needs NAS export + backup-host/design decision.
+Blocked — SERV-07 only, needs two operator infra actions I cannot perform:
+1. NAS: create export 10.10.40.2:/volume1/backup/postgres allowing the Proxmox host.
+2. Proxmox host: authorize the operator SSH key for root@10.10.30.30.
+Host-based backup code is written + syntax-checked; run backup && restore-test to verify.
+
+Note: kubectl works via KUBECONFIG=.local/kubeconfig-k3s-01 (there is no ~/.kube/config).
 
 Last activity: 2026-07-08 — Deployed the stack for the first time; provisioned real
-Proxmox LXC 120 + VM 121, fixed every latent bug, published shared-services to Argo.
+Proxmox LXC 120 + VM 121, fixed every latent bug, made k3s discovery work end-to-end.
 
 ## Session Continuity
 

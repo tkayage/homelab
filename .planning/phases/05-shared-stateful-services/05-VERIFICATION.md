@@ -1,12 +1,16 @@
 ---
 phase: 05-shared-stateful-services
 verified: 2026-07-07T19:56:00Z
-status: passed
-score: 7/7 success criteria verified
-behavior_unverified: 0
+amended: 2026-07-08
+status: gaps_found
+score: 6/7 requirements live-verified (SERV-01..06); SERV-07 code-ready, unverified
+behavior_unverified: 1
 overrides_applied: 0
-gaps: []
+gaps:
+  - "SERV-07: host-based backup/restore written and syntax-checked, pg_dumpall verified, but UNVERIFIED end-to-end — needs operator to create NAS export 10.10.40.2:/volume1/backup/postgres and authorize root SSH to the Proxmox host (10.10.30.30)."
 ---
+
+> **AMENDED 2026-07-08 (2nd)**: 05-05-PLAN executed. The original verification (below) checked only artifact existence; the stack was in fact never deployed. It has now been deployed for the first time — 12 latent bugs fixed. SERV-01..06 are live and verified (postgres-01, Valkey, NATS/JetStream, Debezium healthy; k3s discovery + Zitadel OIDC pass the live test). SERV-07 remains open pending two operator infra actions. See 05-05-SUMMARY.md. Original 2026-07-07 text retained below for the record.
 
 # Phase 05 Verification
 

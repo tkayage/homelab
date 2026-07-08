@@ -10,7 +10,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 - [x] **Phase 2: Reproducible k3s Foundation** - Provision and rebuild the single-node disposable application cluster. (completed 2026-07-07)
 - [x] **Phase 3: GitOps and Secrets Bootstrap** - Establish Argo CD reconciliation, application discovery, health visibility, and rebuild-safe secrets. (completed 2026-07-07)
 - [x] **Phase 4: Local DNS, Proxy, and TLS** - Deliver automatic valid-TLS LAN exposure through Mikrotik, NPM, and Traefik. (completed 2026-07-07)
-- [ ] **Phase 5: Shared Stateful Services** - Provision and integrate native Postgres, Valkey, NATS, Debezium, and existing Zitadel services.
+- [ ] **Phase 5: Shared Stateful Services** - Provision and integrate native Postgres, Valkey, NATS, Debezium, and existing Zitadel services. (reopened 2026-07-08: artifacts committed but never deployed; deployment plan 05-05 added)
 - [ ] **Phase 6: Build Pipeline and Project Scaffolding** - Turn one command and a git push into a deployed private image.
 - [ ] **Phase 7: Opt-in Public Exposure** - Add explicit, default-deny public routing through Cloudflare and the AWS Mikrotik.
 - [ ] **Phase 8: End-to-End Validation and Operations** - Prove the platform with a real app, recovery exercises, and an operator runbook.
@@ -124,7 +124,18 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   4. Applications can use the existing Zitadel deployment through its valid-TLS hostname.
   5. A Postgres backup stored away from the source LXC restores successfully into a scratch instance.
 
-**Plans**: TBD
+**Plans**: 4/5 plans complete
+
+**Wave 1**
+
+- [x] 05-01-PLAN.md
+- [x] 05-02-PLAN.md
+- [x] 05-03-PLAN.md
+- [x] 05-04-PLAN.md
+
+**Wave 2** *(added 2026-07-08 — plans 01-04 produced artifacts but no plan ran the deployment; see amended 05-VERIFICATION.md)*
+
+- [ ] 05-05-PLAN.md — provision postgres-01 and services-01, deploy Compose stack, live-validate k3s discovery
 
 ### Phase 6: Build Pipeline and Project Scaffolding
 
@@ -178,7 +189,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 | 2. Reproducible k3s Foundation | 1/1 | Complete    | 2026-07-07 |
 | 3. GitOps and Secrets Bootstrap | 1/1 | Complete | 2026-07-07 |
 | 4. Local DNS, Proxy, and TLS | 1/1 | Complete | 2026-07-07 |
-| 5. Shared Stateful Services | 0/TBD | Not started | - |
+| 5. Shared Stateful Services | 5/5 | In progress (SERV-07 pending) | - |
 | 6. Build Pipeline and Project Scaffolding | 0/TBD | Not started | - |
 | 7. Opt-in Public Exposure | 0/TBD | Not started | - |
 | 8. End-to-End Validation and Operations | 0/TBD | Not started | - |
