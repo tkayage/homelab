@@ -13,6 +13,10 @@ resource "proxmox_virtual_environment_download_file" "ubuntu_lxc" {
   url          = "http://download.proxmox.com/images/system/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
   file_name    = "ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
   overwrite    = false
+  # The Ubuntu LXC template is a shared, cluster-wide cache artifact that may
+  # already exist (placed manually or by another guest). Adopt it instead of
+  # erroring, while still downloading it on a from-scratch Proxmox host.
+  overwrite_unmanaged = true
 }
 
 resource "proxmox_virtual_environment_container" "postgres" {
@@ -67,6 +71,5 @@ resource "proxmox_virtual_environment_container" "postgres" {
 
   features {
     nesting = true
-    mount   = ["nfs"]
   }
 }
