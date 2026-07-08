@@ -32,13 +32,15 @@
 
 ### Shared Services
 
-- [ ] **SERV-01**: Postgres runs as a native service in a dedicated Proxmox LXC.
-- [ ] **SERV-02**: Valkey or Redis runs in the dedicated shared-services Compose VM with explicit memory limits.
-- [ ] **SERV-03**: NATS with JetStream runs in the dedicated shared-services Compose VM with bounded persistent storage.
-- [ ] **SERV-04**: Debezium runs in the dedicated shared-services Compose VM with controlled replication-slot WAL growth.
+- [x] **SERV-01**: Postgres runs as a native service in a dedicated Proxmox LXC.
+- [x] **SERV-02**: Valkey or Redis runs in the dedicated shared-services Compose VM with explicit memory limits.
+- [x] **SERV-03**: NATS with JetStream runs in the dedicated shared-services Compose VM with bounded persistent storage.
+- [x] **SERV-04**: Debezium runs in the dedicated shared-services Compose VM with controlled replication-slot WAL growth.
 - [ ] **SERV-05**: k3s applications reach shared services through stable LAN names.
 - [ ] **SERV-06**: Applications integrate with the existing Zitadel deployment without replacing it.
 - [ ] **SERV-07**: Postgres has a verified off-host backup and restore procedure.
+
+> 2026-07-08 (05-05 deployment): SERV-01..04 deployed and live-verified. SERV-05/06 blocked — Argo CD's argocd-cm excludes EndpointSlice, so selectorless Services get no backends (Services created, discovery mechanism proven via manual slice). SERV-07 blocked — NFS backup export absent on NAS + in-container mount unviable. See 05-05-SUMMARY.md.
 
 ### Scaffolding
 
@@ -112,13 +114,13 @@
 | EDGE-03 | Phase 4 | Complete |
 | EDGE-04 | Phase 4 | Complete |
 | EDGE-05 | Phase 4 | Complete |
-| SERV-01 | Phase 5 | Pending |
-| SERV-02 | Phase 5 | Pending |
-| SERV-03 | Phase 5 | Pending |
-| SERV-04 | Phase 5 | Pending |
-| SERV-05 | Phase 5 | Pending |
-| SERV-06 | Phase 5 | Pending |
-| SERV-07 | Phase 5 | Pending |
+| SERV-01 | Phase 5 | Complete |
+| SERV-02 | Phase 5 | Complete |
+| SERV-03 | Phase 5 | Complete |
+| SERV-04 | Phase 5 | Complete |
+| SERV-05 | Phase 5 | In progress |
+| SERV-06 | Phase 5 | In progress |
+| SERV-07 | Phase 5 | In progress |
 | SCAF-01 | Phase 6 | Pending |
 | SCAF-02 | Phase 6 | Pending |
 | SCAF-03 | Phase 6 | Pending |
