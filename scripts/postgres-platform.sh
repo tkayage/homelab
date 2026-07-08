@@ -6,7 +6,10 @@ tf_dir="$root/infrastructure/opentofu/postgres"
 local_dir="$root/.local"
 credentials=${HOMELAB_PROXMOX_ENV:-/home/tonny/.config/homelab/proxmox.env}
 ssh_host=10.10.30.100
-ssh_user=ubuntu
+# Standard Proxmox Ubuntu LXC template ships root-only (no cloud-init user);
+# the provisioning SSH key is injected for root. sudo is present, so the
+# in-container `sudo -u postgres` calls still work.
+ssh_user=root
 ssh_key=${POSTGRES_SSH_KEY:-$HOME/.ssh/id_rsa}
 nfs_share=${POSTGRES_NFS_SHARE:-10.10.40.2:/volume1/backup/postgres}
 
@@ -94,6 +97,10 @@ configure_postgres() {
     
     # Create debezium role
     sudo -u postgres psql -c "CREATE ROLE debezium WITH REPLICATION LOGIN PASSWORD 'debezium';" || true
+    # Pre-create the CDC publication as superuser (the least-privilege debezium
+    # role cannot CREATE PUBLICATION FOR ALL TABLES). Debezium references this
+    # with publication.autocreate.mode=disabled.
+    sudo -u postgres psql -c "CREATE PUBLICATION dbz_publication FOR ALL TABLES;" || true
 EOF
   printf 'PostgreSQL configured\n'
 }

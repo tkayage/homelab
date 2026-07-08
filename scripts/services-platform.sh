@@ -57,7 +57,10 @@ apply_services() {
 deploy_services() {
   load_environment
   
-  ssh -i "$ssh_key" -o StrictHostKeyChecking=accept-new "${ssh_user}@${ssh_host}" "mkdir -p /opt/homelab/services/debezium"
+  # /opt is root-owned; create the tree and hand it to the deploy user so the
+  # unprivileged scp below can write. The .env (holding the Debezium DB
+  # password) is created out-of-band by the operator and preserved here.
+  ssh -i "$ssh_key" -o StrictHostKeyChecking=accept-new "${ssh_user}@${ssh_host}" "sudo mkdir -p /opt/homelab/services/debezium && sudo chown -R ${ssh_user}:${ssh_user} /opt/homelab"
   scp -i "$ssh_key" -o StrictHostKeyChecking=accept-new -r "$root/infrastructure/services/"* "${ssh_user}@${ssh_host}:/opt/homelab/services/"
   
   ssh -i "$ssh_key" -o StrictHostKeyChecking=accept-new "${ssh_user}@${ssh_host}" "test -f /opt/homelab/services/.env" || fail "/opt/homelab/services/.env does not exist on remote host"
@@ -69,7 +72,7 @@ validate_services() {
   load_environment
 
   local running_count
-  running_count=$(ssh -i "$ssh_key" -o StrictHostKeyChecking=accept-new "${ssh_user}@${ssh_host}" "cd /opt/homelab/services && sudo docker compose ps --status running --format json" | grep -c '"State": "running"' || true)
+  running_count=$(ssh -i "$ssh_key" -o StrictHostKeyChecking=accept-new "${ssh_user}@${ssh_host}" "cd /opt/homelab/services && sudo docker compose ps --status running --format '{{.State}}'" | grep -c '^running$' || true)
   
   if [[ "$running_count" -lt 3 ]]; then
     fail "Not all Docker containers are running on remote host"

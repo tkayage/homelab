@@ -16,6 +16,10 @@ resource "proxmox_download_file" "ubuntu_noble" {
   checksum           = "5fa5b05e5ec239858c4531485d6023b0896448c2df7c63b34f8dae6ea6051a44"
   checksum_algorithm = "sha256"
   overwrite          = false
+  # This base cloud image is shared with the k3s module and is typically
+  # already present on the datastore. Adopt the existing (checksum-pinned)
+  # file instead of erroring, while still downloading on a fresh host.
+  overwrite_unmanaged = true
 }
 
 resource "proxmox_virtual_environment_file" "cloud_init" {
