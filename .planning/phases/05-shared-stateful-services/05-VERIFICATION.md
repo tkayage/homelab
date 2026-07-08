@@ -1,48 +1,48 @@
 ---
 phase: 05-shared-stateful-services
-verified: 2026-07-07T19:56:00Z
-amended: 2026-07-08
-status: gaps_found
-score: 6/7 requirements live-verified (SERV-01..06); SERV-07 code-ready, unverified
-behavior_unverified: 1
+verified: 2026-07-08T20:25:17Z
+status: passed
+score: 7/7 requirements live-verified
+behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - "SERV-07: workstation-mediated backup/restore. Restore is VERIFIED live — a real pg_dumpall from the LXC restores cleanly into a disposable postgres:17 container on services-01 (debezium role + dbz_publication reconstructed, then torn down). Only the off-host NAS write remains: operator must grant the workstation 10.10.30.70 read/write NFS access to 10.10.40.2:/volume1/homelab-backups (currently 'access denied by server'). Prior Proxmox-host approach retired — that host has no reachable shell."
+gaps: []
 ---
-
-> **AMENDED 2026-07-08 (2nd)**: 05-05-PLAN executed. The original verification (below) checked only artifact existence; the stack was in fact never deployed. It has now been deployed for the first time — 12 latent bugs fixed. SERV-01..06 are live and verified (postgres-01, Valkey, NATS/JetStream, Debezium healthy; k3s discovery + Zitadel OIDC pass the live test). SERV-07 remains open pending two operator infra actions. See 05-05-SUMMARY.md. Original 2026-07-07 text retained below for the record.
 
 # Phase 05 Verification
 
-**Phase:** 05-shared-stateful-services
-**Date:** 2026-07-07
+All seven Shared Services requirements are live-verified. SERV-01 through SERV-06
+retain the deployment evidence recorded by plan 05-05. Plan 05-06 closes SERV-07
+with a real NAS-resident backup and isolated restore of that exact artifact.
 
-## Goal Achievement
-The phase goal has been **successfully achieved**. Shared stateful infrastructure outside the k3s cluster (PostgreSQL, Valkey, NATS, Debezium, Zitadel) has been successfully provisioned and configured. Automated backup/restore mechanisms for PostgreSQL have been established using an NFS share. Kubernetes discovery has been set up via GitOps-managed selectorless Services and EndpointSlices.
+## SERV-07 Live Evidence — 2026-07-08
+
+- NFS authorization probe: mounted
+  `10.10.40.2:/volume1/homelab-backups` from workstation `10.10.30.70` with
+  `hard,nfsvers=4,noatime`, wrote and read a non-empty probe, removed it, and
+  unmounted successfully.
+- Backup command: `bash scripts/postgres-platform.sh backup`
+- Exact NAS path emitted by that run:
+  `/mnt/pg-backup/postgres/pg_dumpall_20260708_202625.sql.gz`
+- Backup validation: the file was non-empty and `gzip -t` passed while the NAS
+  export was mounted.
+- Restore command:
+  `bash scripts/postgres-platform.sh restore-test "/mnt/pg-backup/postgres/pg_dumpall_20260708_202625.sql.gz"`
+- Restore result: the same pathname was streamed into a disposable
+  `postgres:17` container on `services-01`; the Debezium role was reconstructed
+  with LOGIN and REPLICATION, one non-template database was present, and the
+  scratch container was removed.
 
 ## Requirements Traceability
 
-- **SERV-01: Postgres runs as a native service in a dedicated Proxmox LXC.**
-  - **Verified**: `infrastructure/opentofu/postgres/main.tf` defines an unprivileged LXC `postgres-01` (VMID 120).
-- **SERV-02: Valkey or Redis runs in the dedicated shared-services Compose VM with explicit memory limits.**
-  - **Verified**: `infrastructure/opentofu/services/main.tf` defines `services-01` (VMID 121), and `infrastructure/services/docker-compose.yaml` bounds Valkey to a `1536M` memory limit.
-- **SERV-03: NATS with JetStream runs in the dedicated shared-services Compose VM with bounded persistent storage.**
-  - **Verified**: `infrastructure/services/nats.conf` restricts `max_file_store: 4Gb` and `max_mem_store: 256Mb`.
-- **SERV-04: Debezium runs in the dedicated shared-services Compose VM with controlled replication-slot WAL growth.**
-  - **Verified**: Debezium connects to PostgreSQL and NATS as sink. WAL growth is constrained by `max_slot_wal_keep_size = 4GB` in `scripts/postgres-platform.sh`, and `debezium.source.heartbeat.interval.ms=30000` is configured in `application.properties`.
-- **SERV-05: k3s applications reach shared services through stable LAN names.**
-  - **Verified**: `gitops/apps/shared-services/` includes `Service` and `EndpointSlice` resources for postgres, valkey, nats, and debezium under `*.shared-services.svc.cluster.local`.
-- **SERV-06: Applications integrate with the existing Zitadel deployment without replacing it.**
-  - **Verified**: `endpointslice-zitadel.yaml` directs `zitadel` to the existing IP `10.10.30.236`.
-- **SERV-07: Postgres has a verified off-host backup and restore procedure.**
-  - **Verified**: `scripts/postgres-platform.sh` includes `backup` to NFS `10.10.40.2:/volume1/backup/postgres` and `restore-test` into a disposable scratch database to verify the backup.
-
-## Context Decisions Honored
-
-1. **PostgreSQL backup**: Uses an NFS mount to a NAS (`10.10.40.2`). Restore is proven into a temporary scratch DB via `restore_test` function in `scripts/postgres-platform.sh`.
-2. **CDC and event transport**: Kafka is omitted. NATS JetStream serves as the sink. Heartbeat configuration prevents unbounded WAL growth.
-3. **Kubernetes discovery**: Discovery inside the cluster utilizes static `*.shared-services.svc.cluster.local` names through `endpointslice.kubernetes.io/managed-by: homelab-gitops`. External lifecycles are completely decoupled from Argo CD.
+- SERV-01 — passed: PostgreSQL 17 runs in dedicated LXC `postgres-01`.
+- SERV-02 — passed: bounded Valkey runs on `services-01`.
+- SERV-03 — passed: bounded NATS JetStream runs on `services-01`.
+- SERV-04 — passed: Debezium CDC and bounded replication-slot WAL are live.
+- SERV-05 — passed: k3s workloads reach stable shared-service names.
+- SERV-06 — passed: existing Zitadel integration is live.
+- SERV-07 — passed: a real off-host NAS backup is non-empty, gzip-valid, and
+  restores successfully into an isolated PostgreSQL 17 scratch instance.
 
 ## Conclusion
 
-Phase 05 is complete, fully verified against its Must-Haves, and properly documented. The environment is now ready for application scaffolding (Phase 06).
+Phase 5 is complete: 7/7 requirements live-verified with no deferred behaviors.

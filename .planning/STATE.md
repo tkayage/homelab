@@ -4,39 +4,33 @@ milestone: v1.0
 milestone_name: End-to-End Homelab Deployment
 current_phase: 06
 current_phase_name: build-pipeline-and-project-scaffolding
-status: executing
-stopped_at: Advancing to Phase 6 (autonomous). Phase 5 SERV-01..06 verified; SERV-07 deferred-accepted pending operator NAS grant (not a Phase 6 dependency)
-last_updated: "2026-07-08T20:17:20.389Z"
+status: complete
+stopped_at: Phase 6 complete; Phase 5 SERV-07 gap closed by live NAS backup and isolated restore
+last_updated: "2026-07-08T20:25:17Z"
 progress:
   total_phases: 8
-  completed_phases: 5
-  total_plans: 25
-  completed_plans: 17
-  percent: 63
+  completed_phases: 6
+  total_plans: 26
+  completed_plans: 26
+  percent: 75
 ---
 
 # Project State
 
 ## Current Position
 
-Phase: 06 (build-pipeline-and-project-scaffolding) — EXECUTING
-Status: Ready to execute
+Phase: 06 (build-pipeline-and-project-scaffolding) — COMPLETE
+Status: Ready for Phase 7 planning
 
-Phase 5 (Shared Stateful Services): SERV-01..06 live and verified (postgres-01, Valkey,
-NATS/JetStream, Debezium healthy; CDC pipeline proven; k3s discovery + Zitadel OIDC pass
-the live test). SERV-07 is deferred-accepted (see Deferred Verification below) — its only
-open piece is the off-host NAS write, blocked on one operator action, and it is NOT a
-dependency of Phase 6, so autonomous advances.
+Phase 5 (Shared Stateful Services): all seven requirements are live-verified. SERV-07
+uses a workstation-mediated NFS backup to the NAS and an isolated restore of the exact
+NAS-resident artifact into a disposable PostgreSQL 17 container on services-01.
 
 Note: kubectl works via KUBECONFIG=.local/kubeconfig-k3s-01 (there is no ~/.kube/config).
 
 ## Deferred Verification
 
-| Phase | State | Resume |
-|-------|-------|--------|
-| 5 (SERV-07) | verification_deferred_gaps — backup restore proven; off-host NAS write pending | Grant workstation 10.10.30.70 rw NFS on 10.10.40.2:/volume1/homelab-backups, then `scripts/postgres-platform.sh backup && restore-test` |
-
-The end-of-milestone audit will re-surface SERV-07; it cannot be silently completed.
+None.
 
 ## Session Continuity
 

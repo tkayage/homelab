@@ -151,28 +151,40 @@ umount_backup() { mountpoint -q "$backup_mount" && sudo umount "$backup_mount" |
 backup_postgres() {
   load_environment
   mount_backup
+  trap umount_backup EXIT
   local dest="$backup_mount/$backup_subdir"
   sudo mkdir -p "$dest"
   local ts file; ts=$(date +%Y%m%d_%H%M%S); file="$dest/pg_dumpall_${ts}.sql.gz"
   if ssh_lxc "sudo -u postgres pg_dumpall --clean --if-exists" | gzip | sudo tee "$file" >/dev/null; then
+    sudo test -s "$file" || fail "backup is empty: $file"
+    sudo gzip -t "$file" || fail "backup is not gzip-valid: $file"
     sudo find "$dest" -name 'pg_dumpall_*.sql.gz' -mtime +14 -delete
     printf 'Backup complete: %s (%s)\n' "$file" "$(sudo du -h "$file" | cut -f1)"
   else
-    umount_backup; fail "backup failed"
+    fail "backup failed"
   fi
   umount_backup
+  trap - EXIT
+  printf 'BACKUP_PATH=%s\n' "$file"
 }
 
-# Restore the latest NAS backup into a DISPOSABLE postgres container on the
-# services VM and confirm globals + databases reconstruct. Verified live against
-# the LXC dump; only the NAS read-back is pending the export grant.
+# Restore one explicitly selected NAS backup into a DISPOSABLE postgres container
+# on the services VM and confirm globals + databases reconstruct.
 restore_test() {
+  [[ $# -eq 1 ]] || fail "usage: $0 restore-test <backup-path>"
+  local backup_path=$1
   load_environment
   mount_backup
-  local dest="$backup_mount/$backup_subdir" latest
-  latest=$(sudo ls -t "$dest"/pg_dumpall_*.sql.gz 2>/dev/null | head -1) \
-    || { umount_backup; fail "no backup found in $dest"; }
-  [[ -n "$latest" ]] || { umount_backup; fail "no backup found in $dest"; }
+  trap 'ssh_svc "docker rm -f $scratch_name >/dev/null 2>&1" >/dev/null 2>&1 || true; umount_backup' EXIT
+  local dest="$backup_mount/$backup_subdir"
+  [[ "$backup_path" == "$dest"/pg_dumpall_*.sql.gz ]] \
+    || fail "backup path must match $dest/pg_dumpall_*.sql.gz"
+  [[ "$(dirname "$backup_path")" == "$dest" ]] \
+    || fail "backup path is outside $dest"
+  sudo test ! -L "$backup_path" || fail "backup path must not be a symbolic link: $backup_path"
+  sudo test -f "$backup_path" && sudo test -s "$backup_path" \
+    || fail "backup is missing or empty: $backup_path"
+  sudo gzip -t "$backup_path" || fail "backup is not gzip-valid: $backup_path"
 
   ssh_svc "docker rm -f $scratch_name >/dev/null 2>&1; docker run -d --name $scratch_name -e POSTGRES_PASSWORD=verify $scratch_image >/dev/null"
   local ready=
@@ -180,16 +192,17 @@ restore_test() {
     if ssh_svc "docker exec $scratch_name pg_isready -U postgres -q" 2>/dev/null; then ready=1; break; fi
     sleep 3
   done
-  [[ -n "$ready" ]] || { ssh_svc "docker rm -f $scratch_name >/dev/null 2>&1"; umount_backup; fail "scratch instance did not become ready"; }
+  [[ -n "$ready" ]] || fail "scratch instance did not become ready"
 
-  sudo cat "$latest" | gunzip | ssh_svc "docker exec -i $scratch_name psql -U postgres -v ON_ERROR_STOP=0" >/dev/null 2>&1
+  sudo cat "$backup_path" | gunzip | ssh_svc "docker exec -i $scratch_name psql -U postgres -v ON_ERROR_STOP=0" >/dev/null 2>&1
   local roles dbs
   roles=$(ssh_svc "docker exec $scratch_name psql -U postgres -Atqc \"SELECT count(*) FROM pg_roles WHERE rolname='debezium' AND rolreplication AND rolcanlogin\"")
   dbs=$(ssh_svc "docker exec $scratch_name psql -U postgres -Atqc \"SELECT count(*) FROM pg_database WHERE datistemplate=false\"")
   ssh_svc "docker rm -f $scratch_name >/dev/null"
   umount_backup
+  trap - EXIT
   [[ "$roles" == 1 ]] || fail "restore verification failed: debezium role not reconstructed (roles=$roles)"
-  printf 'Restore verification passed (scratch %s: debezium role reconstructed, %s database(s) restored)\n' "$scratch_image" "$dbs"
+  printf 'Restore verification passed for %s (scratch %s: debezium role reconstructed, %s database(s) restored)\n' "$backup_path" "$scratch_image" "$dbs"
 }
 
 destroy_postgres() {
@@ -204,7 +217,7 @@ case ${1:-} in
   configure) configure_postgres ;;
   validate) validate_postgres ;;
   backup) backup_postgres ;;
-  restore-test) restore_test ;;
+  restore-test) shift; restore_test "$@" ;;
   destroy) destroy_postgres ;;
   *) fail "usage: $0 {preflight|apply|configure|validate|backup|restore-test|destroy}" ;;
 esac

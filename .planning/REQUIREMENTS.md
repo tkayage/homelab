@@ -38,9 +38,9 @@
 - [x] **SERV-04**: Debezium runs in the dedicated shared-services Compose VM with controlled replication-slot WAL growth.
 - [x] **SERV-05**: k3s applications reach shared services through stable LAN names.
 - [x] **SERV-06**: Applications integrate with the existing Zitadel deployment without replacing it.
-- [ ] **SERV-07**: Postgres has a verified off-host backup and restore procedure.
+- [x] **SERV-07**: Postgres has a verified off-host backup and restore procedure.
 
-> 2026-07-08 (05-05 deployment): SERV-01..06 deployed and live-verified (postgres-01, Valkey, NATS/JetStream, Debezium all healthy; k3s discovery + Zitadel OIDC pass the live test after un-excluding EndpointSlice in argocd-cm). SERV-07: backup reworked to workstation-mediated (Proxmox-host approach retired — no reachable shell). Restore is VERIFIED live — a real pg_dumpall restores cleanly into a disposable postgres:17 scratch container (debezium role + publication reconstructed). Only the off-host NAS write remains, blocked on ONE operator action: grant workstation 10.10.30.70 read/write NFS access to 10.10.40.2:/volume1/homelab-backups. See 05-05-SUMMARY.md.
+> 2026-07-08 (05-06 gap closure): SERV-07 live-verified. Workstation 10.10.30.70 wrote a non-empty, gzip-valid pg_dumpall to `10.10.40.2:/volume1/homelab-backups/postgres`; that exact NAS pathname restored into a disposable postgres:17 container on services-01 and reconstructed the Debezium role. See 05-VERIFICATION.md.
 
 ### Scaffolding
 
@@ -120,7 +120,7 @@
 | SERV-04 | Phase 5 | Complete |
 | SERV-05 | Phase 5 | Complete |
 | SERV-06 | Phase 5 | Complete |
-| SERV-07 | Phase 5 | In progress |
+| SERV-07 | Phase 5 | Complete |
 | SCAF-01 | Phase 6 | Pending |
 | SCAF-02 | Phase 6 | Pending |
 | SCAF-03 | Phase 6 | Pending |

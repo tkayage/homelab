@@ -10,7 +10,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 - [x] **Phase 2: Reproducible k3s Foundation** - Provision and rebuild the single-node disposable application cluster. (completed 2026-07-07)
 - [x] **Phase 3: GitOps and Secrets Bootstrap** - Establish Argo CD reconciliation, application discovery, health visibility, and rebuild-safe secrets. (completed 2026-07-07)
 - [x] **Phase 4: Local DNS, Proxy, and TLS** - Deliver automatic valid-TLS LAN exposure through Mikrotik, NPM, and Traefik. (completed 2026-07-07)
-- [ ] **Phase 5: Shared Stateful Services** - Provision and integrate native Postgres, Valkey, NATS, Debezium, and existing Zitadel services. (reopened 2026-07-08: artifacts committed but never deployed; deployment plan 05-05 added)
+- [x] **Phase 5: Shared Stateful Services** - Provision and integrate native Postgres, Valkey, NATS, Debezium, and existing Zitadel services. (completed 2026-07-08)
 - [x] **Phase 6: Build Pipeline and Project Scaffolding** - Turn one command and a git push into a deployed private image. (completed 2026-07-08)
 - [ ] **Phase 7: Opt-in Public Exposure** - Add explicit, default-deny public routing through Cloudflare and the AWS Mikrotik.
 - [ ] **Phase 8: End-to-End Validation and Operations** - Prove the platform with a real app, recovery exercises, and an operator runbook.
@@ -124,7 +124,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   4. Applications can use the existing Zitadel deployment through its valid-TLS hostname.
   5. A Postgres backup stored away from the source LXC restores successfully into a scratch instance.
 
-**Plans**: 5/6 plans complete
+**Plans**: 6/6 plans complete
 
 **Wave 1**
 
@@ -145,7 +145,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 
 **Wave 5** *(blocked on Wave 4; gap closure for SERV-07)*
 
-- [ ] 05-06-PLAN.md — authorize the workstation NFS client, write one exact NAS artifact, and restore that same artifact before closing Phase 5
+- [x] 05-06-PLAN.md — authorized the workstation NFS client, wrote one exact NAS artifact, and restored that same artifact before closing Phase 5
 
 ### Phase 6: Build Pipeline and Project Scaffolding
 
@@ -225,7 +225,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 | 2. Reproducible k3s Foundation | 1/1 | Complete    | 2026-07-07 |
 | 3. GitOps and Secrets Bootstrap | 1/1 | Complete | 2026-07-07 |
 | 4. Local DNS, Proxy, and TLS | 1/1 | Complete | 2026-07-07 |
-| 5. Shared Stateful Services | 5/5 | In progress (SERV-07 pending) | - |
+| 5. Shared Stateful Services | 6/6 | Complete | 2026-07-08 |
 | 6. Build Pipeline and Project Scaffolding | 8/8 | Complete   | 2026-07-08 |
 | 7. Opt-in Public Exposure | 0/TBD | Not started | - |
 | 8. End-to-End Validation and Operations | 0/TBD | Not started | - |
