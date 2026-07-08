@@ -44,7 +44,7 @@ preflight() {
   tofu -chdir="$tf_dir" validate >/dev/null
   api /access/permissions | jq -e '[.data[] | has("Sys.Modify") and has("VM.Allocate") and has("VM.PowerMgmt") and has("Datastore.AllocateSpace")] | any' >/dev/null || fail "required Proxmox privileges are missing"
   local existing
-  existing=$(api /cluster/resources?type=lxc | jq -r '.data[] | select(.vmid==120) | .name')
+  existing=$(api /cluster/resources?type=vm | jq -r '.data[] | select(.vmid==120) | .name')
   [[ -z "$existing" || "$existing" == postgres-01 ]] || fail "VMID 120 is occupied by an undeclared guest"
   printf 'Preflight passed\n'
 }

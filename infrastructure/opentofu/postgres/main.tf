@@ -16,7 +16,6 @@ resource "proxmox_virtual_environment_download_file" "ubuntu_lxc" {
 }
 
 resource "proxmox_virtual_environment_container" "postgres" {
-  name          = local.vm_name
   description   = "Dedicated PostgreSQL server managed by OpenTofu"
   tags          = ["opentofu", "postgres", "durable"]
   node_name     = local.node_name
@@ -68,6 +67,6 @@ resource "proxmox_virtual_environment_container" "postgres" {
 
   features {
     nesting = true
-    nfs     = true
+    mount   = ["nfs"]
   }
 }
