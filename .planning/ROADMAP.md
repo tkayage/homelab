@@ -124,18 +124,28 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   4. Applications can use the existing Zitadel deployment through its valid-TLS hostname.
   5. A Postgres backup stored away from the source LXC restores successfully into a scratch instance.
 
-**Plans**: 4/5 plans complete
+**Plans**: 5/6 plans complete
 
 **Wave 1**
 
 - [x] 05-01-PLAN.md
 - [x] 05-02-PLAN.md
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [x] 05-03-PLAN.md
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [x] 05-04-PLAN.md
 
-**Wave 2** *(added 2026-07-08 — plans 01-04 produced artifacts but no plan ran the deployment; see amended 05-VERIFICATION.md)*
+**Wave 4** *(blocked on Wave 3; added 2026-07-08 — plans 01-04 produced artifacts but no plan ran the deployment; see amended 05-VERIFICATION.md)*
 
 - [~] 05-05-PLAN.md — deployed postgres-01 + services-01, Compose stack, k3s discovery live-verified (SERV-01..06). SERV-07: workstation-mediated backup; restore live-verified into a disposable scratch instance; only the off-host NAS write pending one operator action (grant workstation 10.10.30.70 rw on 10.10.40.2:/volume1/homelab-backups)
+
+**Wave 5** *(blocked on Wave 4; gap closure for SERV-07)*
+
+- [ ] 05-06-PLAN.md — authorize the workstation NFS client, write one exact NAS artifact, and restore that same artifact before closing Phase 5
 
 ### Phase 6: Build Pipeline and Project Scaffolding
 
