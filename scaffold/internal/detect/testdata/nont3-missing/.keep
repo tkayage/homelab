@@ -1,0 +1,1 @@
+Empty non-T3 fixture: no package.json and no Dockerfile — Detect must fail clearly.
