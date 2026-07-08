@@ -497,18 +497,15 @@ non-T3 validation (warn, don't overwrite):
 | A6 | cobra v1.10.2 is current | Standard Stack | Cosmetic; `go get @latest` at build. |
 | A7 | Dev box needs `sops` + `kustomize` installed for local scaffolding/validation | Environment | Blocks local encrypt/validate until installed (both are absent from PATH). |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **PAT vs deploy key for the gitops bump (final pick).**
+1. **PAT vs deploy key for the gitops bump (final pick).** — **RESOLVED:** fine-grained PAT `GITOPS_PUSH_TOKEN` scoped to `gitops-homelab` only, Contents:write; deploy-key fallback noted. Implemented by 06-04 (CI bump job) + 06-08 (operator-token checkpoint).
    - What we know: FG-PAT Contents:write is simplest for a solo operator (one token reusable across app repos as a shared Actions secret); a deploy key is per-repo-pair but strictly scoped.
-   - Recommendation: **fine-grained PAT `GITOPS_PUSH_TOKEN`** scoped to `gitops-homelab` only, Contents:write. Fall back to deploy key only if org policy forbids FG-PATs.
 
-2. **Whom does the GHCR pull token authenticate as?**
+2. **Whom does the GHCR pull token authenticate as?** — **RESOLVED:** dedicated classic PAT with only `read:packages`, carried inside the SOPS `pull-secret.enc.yaml`; rotate by re-encrypting. Implemented by 06-05/06 (pull-secret) + 06-08 (checkpoint).
    - What we know: classic PAT read:packages works; ideally a dedicated machine account, but a solo homelab can use the operator's classic PAT.
-   - Recommendation: dedicated classic PAT with only read:packages; rotate via re-encrypting `pull-secret.enc.yaml`.
 
-3. **Does the scaffolder shell out to `sops`, or require pre-installed?**
-   - Recommendation: shell out to `sops` (reuse `~/.config/homelab/age/keys.txt`); fail with a clear message if `sops` is absent. Consider using the already-downloaded `.local/downloads/sops-v3.13.2.linux.amd64`.
+3. **Does the scaffolder shell out to `sops`, or require pre-installed?** — **RESOLVED:** shell out to `sops` (reuse `~/.config/homelab/age/keys.txt`); Wave 0 (06-01) installs the pinned `.local/downloads/sops-v3.13.2.linux.amd64` to PATH; the scaffolder fails with a clear message if `sops` is absent.
 
 ## Environment Availability
 
