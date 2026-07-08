@@ -1,7 +1,9 @@
 package manifests
 
 import (
+	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -141,4 +143,108 @@ func TestIngress(t *testing.T) {
 			t.Errorf("ingress missing %q", must)
 		}
 	}
+}
+
+// imageFromLine extracts the value after a "<key>: " prefix on the unique line
+// that carries it — used to compare the Deployment image and the kustomization
+// images[].name byte-for-byte.
+func imageFromLine(t *testing.T, body, keyPrefix string) string {
+	t.Helper()
+	for _, ln := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(ln)
+		if strings.HasPrefix(trimmed, keyPrefix) {
+			return strings.TrimSpace(strings.TrimPrefix(trimmed, keyPrefix))
+		}
+	}
+	t.Fatalf("no line with prefix %q in:\n%s", keyPrefix, body)
+	return ""
+}
+
+// TestKustomizationSopsIndirection asserts the CRITICAL SOPS filename indirection
+// (Pitfall 1): resources references the DECRYPTED pull-secret.yaml, never the
+// on-disk pull-secret.enc.yaml. Verified live against gitops-smoke.
+func TestKustomizationSopsIndirection(t *testing.T) {
+	dir := mustRender(t, t3Data())
+	kust := readFile(t, dir, "kustomization.yaml")
+
+	if !strings.Contains(kust, "pull-secret.yaml") {
+		t.Errorf("kustomization must reference the decrypted pull-secret.yaml:\n%s", kust)
+	}
+	if strings.Contains(kust, "pull-secret.enc.yaml") {
+		t.Error("kustomization must NOT reference the encrypted pull-secret.enc.yaml (Pitfall 1)")
+	}
+	for _, must := range []string{"deployment.yaml", "service.yaml", "ingress.yaml", "newTag: latest"} {
+		if !strings.Contains(kust, must) {
+			t.Errorf("kustomization missing %q", must)
+		}
+	}
+}
+
+// TestImageNameMatch asserts the Deployment image and the kustomization
+// images[].name are byte-identical (Pitfall 2) so the CI `kustomize edit set
+// image` bump resolves instead of no-oping the pod onto :latest.
+func TestImageNameMatch(t *testing.T) {
+	dir := mustRender(t, t3Data())
+	depImage := imageFromLine(t, readFile(t, dir, "deployment.yaml"), "image: ")
+	kustName := imageFromLine(t, readFile(t, dir, "kustomization.yaml"), "- name: ")
+
+	if depImage != kustName {
+		t.Fatalf("image-name mismatch (Pitfall 2): deployment %q != kustomization %q", depImage, kustName)
+	}
+	if depImage != "ghcr.io/testorg/myapp" {
+		t.Errorf("unexpected image string %q", depImage)
+	}
+}
+
+// TestPullSecret asserts the rendered pull secret is a dockerconfigjson Secret
+// named ghcr-pull carrying the ghcr.io auths body.
+func TestPullSecret(t *testing.T) {
+	dir := mustRender(t, t3Data())
+	sec := readFile(t, dir, "pull-secret.yaml")
+	for _, must := range []string{
+		"kind: Secret",
+		"name: ghcr-pull",
+		"type: kubernetes.io/dockerconfigjson",
+		".dockerconfigjson:",
+		`"ghcr.io"`,
+	} {
+		if !strings.Contains(sec, must) {
+			t.Errorf("pull-secret missing %q", must)
+		}
+	}
+}
+
+// TestKustomizeBuild proves the rendered manifest set is buildable by stock
+// kustomize once the pull secret is in its decrypted (plaintext) state — which
+// is exactly what Render writes. It shells out to `kustomize build`, asserts a
+// clean exit, that the transformer pinned the image, and locks the full output
+// to a golden fixture for regression.
+func TestKustomizeBuild(t *testing.T) {
+	kustomize, err := exec.LookPath("kustomize")
+	if err != nil {
+		t.Skip("kustomize not on PATH; skipping build proof")
+	}
+	dir := mustRender(t, t3Data())
+
+	out, err := exec.Command(kustomize, "build", dir).CombinedOutput()
+	if err != nil {
+		t.Fatalf("kustomize build failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "image: ghcr.io/testorg/myapp:latest") {
+		t.Errorf("kustomize build output did not pin the transformed image:\n%s", out)
+	}
+
+	want := readGolden(t, "apps-slug.golden.txt")
+	if !bytes.Equal(out, want) {
+		t.Fatalf("kustomize build output != golden:\n--- got ---\n%s\n--- want ---\n%s", out, want)
+	}
+}
+
+func readGolden(t *testing.T, name string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatalf("read golden %s: %v", name, err)
+	}
+	return b
 }
