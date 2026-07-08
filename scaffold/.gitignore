@@ -1,0 +1,3 @@
+# Compiled scaffold binary — build to ../.local/bin/ instead (see README).
+# `go build ./...` can drop the binary here; never commit binaries (bloats history).
+/scaffold
