@@ -135,7 +135,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 
 **Wave 2** *(added 2026-07-08 — plans 01-04 produced artifacts but no plan ran the deployment; see amended 05-VERIFICATION.md)*
 
-- [~] 05-05-PLAN.md — deployed postgres-01 + services-01, Compose stack, k3s discovery live-verified (SERV-01..06). SERV-07 backup code-ready, pending operator prereqs (NAS export + Proxmox root SSH)
+- [~] 05-05-PLAN.md — deployed postgres-01 + services-01, Compose stack, k3s discovery live-verified (SERV-01..06). SERV-07: workstation-mediated backup; restore live-verified into a disposable scratch instance; only the off-host NAS write pending one operator action (grant workstation 10.10.30.70 rw on 10.10.40.2:/volume1/homelab-backups)
 
 ### Phase 6: Build Pipeline and Project Scaffolding
 

@@ -40,7 +40,7 @@
 - [x] **SERV-06**: Applications integrate with the existing Zitadel deployment without replacing it.
 - [ ] **SERV-07**: Postgres has a verified off-host backup and restore procedure.
 
-> 2026-07-08 (05-05 deployment): SERV-01..06 deployed and live-verified (postgres-01, Valkey, NATS/JetStream, Debezium all healthy; k3s discovery + Zitadel OIDC pass the live test after un-excluding EndpointSlice in argocd-cm). SERV-07 code-ready (host-based backup) but UNVERIFIED — needs two operator actions: create NAS export 10.10.40.2:/volume1/backup/postgres for the Proxmox host, and authorize root SSH to 10.10.30.30. See 05-05-SUMMARY.md.
+> 2026-07-08 (05-05 deployment): SERV-01..06 deployed and live-verified (postgres-01, Valkey, NATS/JetStream, Debezium all healthy; k3s discovery + Zitadel OIDC pass the live test after un-excluding EndpointSlice in argocd-cm). SERV-07: backup reworked to workstation-mediated (Proxmox-host approach retired — no reachable shell). Restore is VERIFIED live — a real pg_dumpall restores cleanly into a disposable postgres:17 scratch container (debezium role + publication reconstructed). Only the off-host NAS write remains, blocked on ONE operator action: grant workstation 10.10.30.70 read/write NFS access to 10.10.40.2:/volume1/homelab-backups. See 05-05-SUMMARY.md.
 
 ### Scaffolding
 

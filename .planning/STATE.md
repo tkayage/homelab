@@ -5,10 +5,10 @@ milestone_name: End-to-End Homelab Deployment
 current_phase: 5
 current_phase_name: Shared Stateful Services
 status: blocked
-stopped_at: 05-05 deployed SERV-01..04 live; SERV-05/06/07 blocked on two decisions (Argo EndpointSlice exclusion; NAS backup export)
-last_updated: "2026-07-08T09:35:00.000Z"
+stopped_at: 05-05 SERV-01..06 live; SERV-07 restore live-verified into disposable scratch instance, blocked only on one NAS grant (rw for workstation 10.10.30.70 on /volume1/homelab-backups)
+last_updated: "2026-07-08T11:40:00.000Z"
 last_activity: 2026-07-08
-last_activity_desc: Deployed Phase 05 stack for real (postgres-01 + services-01), fixed 11 latent bugs, verified 4/7 SERV reqs live
+last_activity_desc: Reworked SERV-07 to workstation-mediated backup; live-verified restore into a disposable postgres:17 scratch container; fixed unsafe restore-into-live-server bug; one NAS grant remains
 progress:
   total_phases: 8
   completed_phases: 4
@@ -30,10 +30,15 @@ Debezium all healthy; CDC pipeline proven; k3s discovery + Zitadel OIDC pass the
 test (all 5 EndpointSlices Argo-managed after un-excluding EndpointSlice in argocd-cm).
 12 latent IaC/script bugs fixed during the first-ever deployment (see 05-05-SUMMARY.md).
 
-Blocked — SERV-07 only, needs two operator infra actions I cannot perform:
-1. NAS: create export 10.10.40.2:/volume1/backup/postgres allowing the Proxmox host.
-2. Proxmox host: authorize the operator SSH key for root@10.10.30.30.
-Host-based backup code is written + syntax-checked; run backup && restore-test to verify.
+Blocked — SERV-07 only, now ONE operator action (down from two). Backup reworked to
+workstation-mediated (Proxmox-host approach retired: 10.10.30.30 has no reachable shell,
+and the unprivileged LXC can't mount NFS). RESTORE IS LIVE-VERIFIED — a real pg_dumpall
+from the LXC restores cleanly into a disposable postgres:17 scratch container on
+services-01 (debezium role + dbz_publication reconstructed, then torn down). Only the
+off-host NAS write remains:
+  → NAS: grant the workstation 10.10.30.70 read/write NFS access to
+    10.10.40.2:/volume1/homelab-backups (folder exists; export currently denies it).
+Then: scripts/postgres-platform.sh backup && scripts/postgres-platform.sh restore-test.
 
 Note: kubectl works via KUBECONFIG=.local/kubeconfig-k3s-01 (there is no ~/.kube/config).
 

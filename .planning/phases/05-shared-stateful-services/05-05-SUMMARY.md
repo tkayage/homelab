@@ -2,7 +2,7 @@
 phase: 05-shared-stateful-services
 plan: 05
 status: partial
-one_liner: "Deployed the Phase 05 stack for the first time; fixed 12 latent bugs; 6/7 SERV requirements live and verified, SERV-07 code-ready but blocked on two operator infra actions"
+one_liner: "Deployed the Phase 05 stack for the first time; fixed 12 latent bugs; 6/7 SERV requirements live and verified; SERV-07 restore proven into a disposable instance, blocked only on one NAS grant for the off-host write"
 verified: 2026-07-08
 requirements_complete: [SERV-01, SERV-02, SERV-03, SERV-04, SERV-05, SERV-06]
 requirements_blocked: [SERV-07]
@@ -56,16 +56,31 @@ time against real Proxmox/k3s and fixed every latent bug that surfaced.
   application-controller. All 5 EndpointSlices now Argo-managed; live discovery test
   passes. Debezium 8080 published to match its advertised endpoint.
 
-## Still blocked — SERV-07 (needs two operator infra actions I cannot perform)
+## SERV-07 — restore proven; only the NAS storage hop remains (one operator action)
 
-Backup/restore reworked to run **from the Proxmox host** (`pct exec` + host NFS mount;
-`postgres-platform.sh` backup/restore-test). `pg_dumpall` is verified against the live
-DB, but the path is **UNVERIFIED end-to-end** until:
-1. **NAS:** create export `10.10.40.2:/volume1/backup/postgres` allowing the Proxmox
-   host `10.10.30.30` (today the NAS only exports `/volume1/surveillance`).
-2. **Proxmox host:** authorize the operator SSH key for `root@10.10.30.30` (root SSH is
-   currently denied; `tonny` has no `sudo`/`pct`).
-Then run `scripts/postgres-platform.sh backup && scripts/postgres-platform.sh restore-test`.
+**Design revised (2026-07-08b).** The Proxmox-host approach the operator picked is
+**not executable**: root ssh to `10.10.30.30` is denied by key *and* password, and the
+PVE API exposes no host shell — there is no shell path onto that host. The unprivileged
+LXC also cannot mount NFS (the `nfs` feature flag is root@pam-only). The one host that
+can *both* reach the LXC *and* the NAS is the **operator workstation** (`10.10.30.70`),
+so backup is now **workstation-mediated**:
+
+- **backup:** `postgres LXC --ssh--> workstation --nfs--> NAS`
+- **restore-test:** `NAS --nfs--> workstation --ssh--> disposable postgres:17 container on services-01`
+
+Verified live this session (NAS bypassed by streaming straight into the scratch
+container): a real `pg_dumpall` from the LXC **restores cleanly into a disposable,
+isolated postgres:17 instance** — `debezium` role reconstructed (replication+login) and
+`dbz_publication` recreated — then torn down. This is the risky part of SERV-07 and it
+**passes**. Also fixed a latent correctness bug in the old restore path: it fed a full
+`pg_dumpall` (global `DROP/CREATE ROLE`, `\connect`) into a scratch DB **on the live
+server**, which would mutate production — restore now targets a throwaway container.
+
+**Only remaining action (NAS, not automatable — no NAS creds on hand):** grant the
+workstation `10.10.30.70` **read/write** NFS access to `10.10.40.2:/volume1/homelab-backups`.
+The folder exists but the export currently denies `10.10.30.70` (`access denied by
+server`; the only live export rule is `/volume1/surveillance → 10.10.30.30`). Once
+granted: `scripts/postgres-platform.sh backup && scripts/postgres-platform.sh restore-test`.
 
 ## Security note (tech debt)
 

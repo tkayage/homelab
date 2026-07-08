@@ -7,7 +7,7 @@ score: 6/7 requirements live-verified (SERV-01..06); SERV-07 code-ready, unverif
 behavior_unverified: 1
 overrides_applied: 0
 gaps:
-  - "SERV-07: host-based backup/restore written and syntax-checked, pg_dumpall verified, but UNVERIFIED end-to-end — needs operator to create NAS export 10.10.40.2:/volume1/backup/postgres and authorize root SSH to the Proxmox host (10.10.30.30)."
+  - "SERV-07: workstation-mediated backup/restore. Restore is VERIFIED live — a real pg_dumpall from the LXC restores cleanly into a disposable postgres:17 container on services-01 (debezium role + dbz_publication reconstructed, then torn down). Only the off-host NAS write remains: operator must grant the workstation 10.10.30.70 read/write NFS access to 10.10.40.2:/volume1/homelab-backups (currently 'access denied by server'). Prior Proxmox-host approach retired — that host has no reachable shell."
 ---
 
 > **AMENDED 2026-07-08 (2nd)**: 05-05-PLAN executed. The original verification (below) checked only artifact existence; the stack was in fact never deployed. It has now been deployed for the first time — 12 latent bugs fixed. SERV-01..06 are live and verified (postgres-01, Valkey, NATS/JetStream, Debezium healthy; k3s discovery + Zitadel OIDC pass the live test). SERV-07 remains open pending two operator infra actions. See 05-05-SUMMARY.md. Original 2026-07-07 text retained below for the record.
