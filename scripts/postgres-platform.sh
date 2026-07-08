@@ -12,6 +12,16 @@ ssh_host=10.10.30.100
 ssh_user=root
 ssh_key=${POSTGRES_SSH_KEY:-$HOME/.ssh/id_rsa}
 nfs_share=${POSTGRES_NFS_SHARE:-10.10.40.2:/volume1/backup/postgres}
+# Backup runs from the Proxmox host (host-based approach): the host mounts the
+# NFS export and dumps the DB via `pct exec` — no NFS mount inside the
+# unprivileged LXC. PREREQUISITES (operator/NAS actions, not automatable here):
+#   1. NAS: create export ${nfs_share} allowing ${pve_host}.
+#   2. Proxmox host: authorize this SSH key for ${pve_user}@${pve_host}.
+# Until both exist this path cannot be exercised; pg_dumpall itself is verified.
+pve_host=${PVE_BACKUP_HOST:-10.10.30.30}
+pve_user=${PVE_BACKUP_USER:-root}
+pve_ssh_key=${PVE_SSH_KEY:-$HOME/.ssh/id_rsa}
+backup_mount=${POSTGRES_BACKUP_MOUNT:-/mnt/pg-backup}
 
 fail() { printf 'ERROR %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null || fail "dependency missing: $1"; }
@@ -112,42 +122,37 @@ validate_postgres() {
   printf 'PostgreSQL validation passed\n'
 }
 
+# Host-based backup: the Proxmox host mounts NFS and dumps the DB via `pct exec`,
+# avoiding an NFS mount inside the unprivileged LXC. Requires the two
+# prerequisites documented at the top of this script. UNVERIFIED end-to-end
+# until they are in place; `pg_dumpall` itself is verified.
 backup_postgres() {
   load_environment
-  wait_ssh
-  ssh -i "$ssh_key" -o BatchMode=yes "$ssh_user@$ssh_host" "sudo bash -s" << EOF
+  ssh -i "$pve_ssh_key" -o BatchMode=yes "$pve_user@$pve_host" "bash -s" << EOF
     set -euo pipefail
-    apt-get update && apt-get install -y nfs-common
-    mkdir -p /mnt/backup
-    if ! mountpoint -q /mnt/backup; then
-      mount -t nfs -o hard,nfsvers=4,noatime $nfs_share /mnt/backup
-    fi
-    TIMESTAMP=\$(date +%Y%m%d_%H%M%S)
-    RETENTION_DAYS=14
-    sudo -u postgres pg_dumpall --clean --if-exists | gzip > "/mnt/backup/pg_dumpall_\${TIMESTAMP}.sql.gz"
-    find /mnt/backup -name "pg_dumpall_*.sql.gz" -mtime +\${RETENTION_DAYS} -delete
-    echo "Backup complete: pg_dumpall_\${TIMESTAMP}.sql.gz"
+    mkdir -p "$backup_mount"
+    mountpoint -q "$backup_mount" || mount -t nfs -o hard,nfsvers=4,noatime "$nfs_share" "$backup_mount"
+    ts=\$(date +%Y%m%d_%H%M%S)
+    pct exec 120 -- su - postgres -c 'pg_dumpall --clean --if-exists' | gzip > "$backup_mount/pg_dumpall_\${ts}.sql.gz"
+    find "$backup_mount" -name 'pg_dumpall_*.sql.gz' -mtime +14 -delete
+    echo "Backup complete: pg_dumpall_\${ts}.sql.gz"
 EOF
 }
 
 restore_test() {
   load_environment
-  wait_ssh
-  ssh -i "$ssh_key" -o BatchMode=yes "$ssh_user@$ssh_host" "sudo bash -s" << EOF
+  ssh -i "$pve_ssh_key" -o BatchMode=yes "$pve_user@$pve_host" "bash -s" << EOF
     set -euo pipefail
-    apt-get update && apt-get install -y nfs-common
-    mkdir -p /mnt/backup
-    if ! mountpoint -q /mnt/backup; then
-      mount -t nfs -o hard,nfsvers=4,noatime $nfs_share /mnt/backup
-    fi
-    LATEST=\$(ls -t /mnt/backup/pg_dumpall_*.sql.gz | head -1)
-    [ -n "\$LATEST" ] || { echo "No backup found to restore"; exit 1; }
-    SCRATCH_DB="restore_verify_\$(date +%s)"
-    sudo -u postgres psql -c "CREATE DATABASE \${SCRATCH_DB};"
-    gunzip -c "\$LATEST" | sudo -u postgres psql -d "\$SCRATCH_DB" 2>/dev/null || true
-    sudo -u postgres psql -d "\$SCRATCH_DB" -c "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';"
-    sudo -u postgres psql -c "DROP DATABASE \${SCRATCH_DB};"
-    echo "Restore verification passed"
+    mkdir -p "$backup_mount"
+    mountpoint -q "$backup_mount" || mount -t nfs -o hard,nfsvers=4,noatime "$nfs_share" "$backup_mount"
+    latest=\$(ls -t "$backup_mount"/pg_dumpall_*.sql.gz 2>/dev/null | head -1)
+    [ -n "\$latest" ] || { echo 'No backup found to restore'; exit 1; }
+    scratch="restore_verify_\$(date +%s)"
+    pct exec 120 -- su - postgres -c "createdb \$scratch"
+    gunzip -c "\$latest" | pct exec 120 -- su - postgres -c "psql -d \$scratch" 2>/dev/null || true
+    pct exec 120 -- su - postgres -c "psql -Atd \$scratch -c \\"SELECT count(*) FROM pg_tables WHERE schemaname='public';\\""
+    pct exec 120 -- su - postgres -c "dropdb \$scratch"
+    echo 'Restore verification passed'
 EOF
 }
 
