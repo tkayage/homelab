@@ -43,6 +43,21 @@ type scaffoldOptions struct {
 	dryRun bool
 	// gitopsRemote overrides the gitops-homelab clone URL (empty = the real repo).
 	gitopsRemote string
+
+	// --- Offline integration seams (hidden) ---
+	// These expose the scaffolder.Options test/integration seams so the offline
+	// validator (scripts/scaffold-verify.sh) can drive a FULL publish against a
+	// local bare gitops repo with a throwaway age keypair and a dummy pull token —
+	// no GitHub, no operator key, no real secret. They are hidden from --help
+	// because normal operator runs never set them (the zero value is the real
+	// operator configuration).
+	gitopsWorktree string
+	githubEnv      string
+	ageRecipient   string
+	ageKeyFile     string
+	skipPreflight  bool
+	pullUsername   string
+	pullPassword   string
 }
 
 // newScaffoldCmd builds the scaffold command with its flags wired to opts.
@@ -65,6 +80,14 @@ func newScaffoldCmd(opts *scaffoldOptions) *cobra.Command {
 				GHCROrg:      opts.ghcrOrg,
 				DryRun:       opts.dryRun,
 				GitopsRemote: opts.gitopsRemote,
+
+				GitopsWorktree: opts.gitopsWorktree,
+				GitHubEnv:      opts.githubEnv,
+				AgeRecipient:   opts.ageRecipient,
+				AgeKeyFile:     opts.ageKeyFile,
+				SkipPreflight:  opts.skipPreflight,
+				PullUsername:   opts.pullUsername,
+				PullPassword:   opts.pullPassword,
 			})
 			if err != nil {
 				return err
@@ -82,6 +105,23 @@ func newScaffoldCmd(opts *scaffoldOptions) *cobra.Command {
 	f.StringVar(&opts.ghcrOrg, "ghcr-org", "tkayage", "GHCR org for the image ghcr.io/<org>/<slug> (CI + manifests)")
 	f.BoolVar(&opts.dryRun, "dry-run", false, "render app-repo files but skip the gitops publish/commit/push")
 	f.StringVar(&opts.gitopsRemote, "gitops-remote", "", "override the gitops-homelab clone URL (empty = the real repo)")
+
+	// Offline integration seams — hidden; used only by scripts/scaffold-verify.sh
+	// to run a full publish offline against a local bare repo with a throwaway
+	// age keypair and a dummy pull token.
+	f.StringVar(&opts.gitopsWorktree, "gitops-worktree", "", "override the local gitops clone target (offline test seam)")
+	f.StringVar(&opts.githubEnv, "github-env", "", "override the github.env credential file (offline test seam)")
+	f.StringVar(&opts.ageRecipient, "age-recipient", "", "override the SOPS age recipient (offline test seam)")
+	f.StringVar(&opts.ageKeyFile, "age-key-file", "", "override the SOPS age key file (offline test seam)")
+	f.BoolVar(&opts.skipPreflight, "skip-preflight", false, "skip the GitHub push-permission preflight (offline test seam)")
+	f.StringVar(&opts.pullUsername, "pull-username", "", "GHCR pull-secret username (offline test seam; default = ghcr org)")
+	f.StringVar(&opts.pullPassword, "pull-password", "", "GHCR pull-secret token (offline test seam; dummy in tests)")
+	for _, hidden := range []string{
+		"gitops-worktree", "github-env", "age-recipient",
+		"age-key-file", "skip-preflight", "pull-username", "pull-password",
+	} {
+		_ = f.MarkHidden(hidden)
+	}
 
 	return cmd
 }
