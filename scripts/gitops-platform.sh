@@ -97,6 +97,11 @@ install_argocd() {
   prepare_cmp_image
   kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
   kubectl apply -n argocd --server-side --force-conflicts -f "$ARGO_MANIFEST"
+  # Re-allow EndpointSlice management (upstream argocd-cm excludes it), needed for
+  # the selectorless shared-services discovery. Applied as a merge patch so it
+  # survives re-running install against the upstream manifest.
+  kubectl -n argocd patch configmap argocd-cm --type merge \
+    --patch-file "$ROOT/infrastructure/kubernetes/argocd/argocd-cm-patch.yaml"
   for resource in $(kubectl -n argocd get deployments,statefulsets -o name); do
     kubectl -n argocd patch "$resource" --type=json \
       -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]' >/dev/null
