@@ -1,11 +1,11 @@
 // Command scaffold is the homelab project scaffolder CLI.
 //
-// It runs in-place inside an existing application repository and (once fully
-// wired in later plans) generates the build/deploy plumbing for an app: a
-// Dockerfile, a GitHub Actions workflow, and the per-app GitOps manifests
-// committed to tkayage/gitops-homelab. This file is the cobra skeleton only —
-// flag parsing and the preflight PATH check are wired here; the actual
-// scaffolding is implemented in plan 06-07.
+// It runs in-place inside an existing application repository and generates the
+// build/deploy plumbing for an app: a Dockerfile (T3) or a validated existing
+// Dockerfile (non-T3), a GitHub Actions workflow, and the per-app GitOps
+// manifests committed to tkayage/gitops-homelab. The actual orchestration lives
+// in internal/scaffolder; this file is the cobra front-end that parses flags into
+// scaffolder.Options, calls scaffolder.Run, and prints the SCAF-05 report.
 //
 // Load-bearing assumptions (see scaffold/README.md, RESEARCH A1/A2):
 //   - A1: module path github.com/tkayage/homelab/scaffold (repo has NO git remote)
@@ -15,9 +15,11 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 
 	"github.com/spf13/cobra"
+
+	"github.com/tkayage/homelab/scaffold/internal/report"
+	"github.com/tkayage/homelab/scaffold/internal/scaffolder"
 )
 
 // scaffoldOptions holds the parsed CLI flags for the scaffold command.
@@ -26,7 +28,7 @@ type scaffoldOptions struct {
 	// Empty means "derive and validate from the working directory".
 	slug string
 	// port is the container port used for the non-T3 TCP probe and Service
-	// targetPort. Defaults to 3000 (Next.js default).
+	// targetPort. 0 means "parse EXPOSE / default 3000".
 	port int
 	// dockerfile is the path to an existing Dockerfile for non-T3 detection.
 	// Empty means "look at the repo root".
@@ -34,24 +36,13 @@ type scaffoldOptions struct {
 	// router selects the T3 health-route location: "app" (App Router) or
 	// "pages" (Pages Router). Empty means auto-detect.
 	router string
-}
-
-// requiredTools are the external binaries the scaffolder will shell out to once
-// wired. The preflight helper asserts they resolve on PATH before doing work.
-var requiredTools = []string{"git", "sops", "kustomize"}
-
-// preflight is the Go equivalent of the gitops-platform.sh need() helper: it
-// asserts every required external tool resolves on PATH and returns an error
-// naming the first missing one. It performs no side effects and is safe to call
-// before any file is written. Later plans call this at the top of the scaffold
-// run; the skeleton exposes it so the dependency contract is explicit now.
-func preflight(tools []string) error {
-	for _, tool := range tools {
-		if _, err := exec.LookPath(tool); err != nil {
-			return fmt.Errorf("missing required command %q on PATH (install it before running scaffold)", tool)
-		}
-	}
-	return nil
+	// ghcrOrg is the SINGLE centralized GHCR org threaded into both the workflow
+	// image and the gitops manifests (default "tkayage").
+	ghcrOrg string
+	// dryRun renders the app-repo files but skips the gitops publish.
+	dryRun bool
+	// gitopsRemote overrides the gitops-homelab clone URL (empty = the real repo).
+	gitopsRemote string
 }
 
 // newScaffoldCmd builds the scaffold command with its flags wired to opts.
@@ -59,28 +50,38 @@ func newScaffoldCmd(opts *scaffoldOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "scaffold",
 		Short: "Generate build/deploy plumbing for an app repo (in-place)",
-		Long: "Scaffold generates a Dockerfile, a GitHub Actions workflow, and the\n" +
-			"per-app GitOps manifests for the current application repository. It is\n" +
-			"run once inside the app repo; thereafter every push to main builds and\n" +
-			"deploys via CI + Argo CD.\n\n" +
-			"NOTE: this is a skeleton — it parses flags but performs no work yet\n" +
-			"(wired in plan 06-07).",
+		Long: "Scaffold generates a Dockerfile (or validates an existing one), a\n" +
+			"GitHub Actions workflow, and the per-app GitOps manifests for the\n" +
+			"current application repository, then registers apps/<slug>/ in\n" +
+			"gitops-homelab. It is run once inside the app repo; thereafter every\n" +
+			"push to main builds and deploys via CI + Argo CD.",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Echo the parsed flags so --help and a dry invocation are useful,
-			// then fail loudly rather than silently doing nothing.
-			fmt.Fprintf(cmd.OutOrStdout(),
-				"scaffold (skeleton): slug=%q port=%d dockerfile=%q router=%q\n",
-				opts.slug, opts.port, opts.dockerfile, opts.router)
-			return fmt.Errorf("not implemented — scaffolding is wired in plan 06-07")
+			res, err := scaffolder.Run(scaffolder.Options{
+				Slug:         opts.slug,
+				Port:         opts.port,
+				Dockerfile:   opts.dockerfile,
+				Router:       opts.router,
+				GHCROrg:      opts.ghcrOrg,
+				DryRun:       opts.dryRun,
+				GitopsRemote: opts.gitopsRemote,
+			})
+			if err != nil {
+				return err
+			}
+			report.Print(cmd.OutOrStdout(), res)
+			return nil
 		},
 	}
 
 	f := cmd.Flags()
 	f.StringVar(&opts.slug, "slug", "", "override the slug derived from the repo/dir name")
-	f.IntVar(&opts.port, "port", 3000, "container port for the non-T3 TCP probe / Service targetPort")
+	f.IntVar(&opts.port, "port", 0, "container port override (0 = parse EXPOSE / default 3000)")
 	f.StringVar(&opts.dockerfile, "dockerfile", "", "path to an existing Dockerfile for non-T3 detection")
 	f.StringVar(&opts.router, "router", "", "T3 health-route location: app|pages (empty = auto-detect)")
+	f.StringVar(&opts.ghcrOrg, "ghcr-org", "tkayage", "GHCR org for the image ghcr.io/<org>/<slug> (CI + manifests)")
+	f.BoolVar(&opts.dryRun, "dry-run", false, "render app-repo files but skip the gitops publish/commit/push")
+	f.StringVar(&opts.gitopsRemote, "gitops-remote", "", "override the gitops-homelab clone URL (empty = the real repo)")
 
 	return cmd
 }
