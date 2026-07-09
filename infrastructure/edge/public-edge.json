@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "owner": "homelab-platform-public-edge",
+  "dns": {
+    "zone": "kayage.co",
+    "suffix": "app.kayage.co",
+    "wildcard": "*.app.kayage.co",
+    "public_target": "public-edge.kayage.co",
+    "ttl": 300
+  },
+  "routing": {
+    "path": "cloudflare -> aws-mikrotik-chr -> home-npm -> k3s-traefik",
+    "lan_npm_host": "10.10.30.237",
+    "traefik_host": "10.10.30.102"
+  },
+  "proof": {
+    "hostname": "public-edge-smoke.app.kayage.co",
+    "health_path": "/health"
+  },
+  "denylist": [
+    {"name": "proxmox", "host": "proxmox.kayage.co", "ports": [80, 443, 8006]},
+    {"name": "argocd", "host": "argocd.app.kayage.co", "ports": [80, 443]},
+    {"name": "npm-admin", "host": "proxy.kayage.co", "ports": [81]},
+    {"name": "traefik-dashboard", "host": "traefik.app.kayage.co", "ports": [80, 443, 8080]},
+    {"name": "mikrotik", "host": "router.kayage.co", "ports": [80, 443, 8291, 8728, 8729]},
+    {"name": "postgres", "host": "postgres.app.kayage.co", "ports": [5432]},
+    {"name": "services", "host": "services.app.kayage.co", "ports": [4222, 5432, 6379, 8083]}
+  ]
+}
