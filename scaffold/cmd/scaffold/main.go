@@ -41,6 +41,8 @@ type scaffoldOptions struct {
 	ghcrOrg string
 	// dryRun renders the app-repo files but skips the gitops publish.
 	dryRun bool
+	// public opts the app into public Cloudflare/AWS-edge exposure.
+	public bool
 	// gitopsRemote overrides the gitops-homelab clone URL (empty = the real repo).
 	gitopsRemote string
 	// pullTokenFile is the operator-safe path to the GHCR read:packages token.
@@ -81,6 +83,7 @@ func newScaffoldCmd(opts *scaffoldOptions) *cobra.Command {
 				Router:        opts.router,
 				GHCROrg:       opts.ghcrOrg,
 				DryRun:        opts.dryRun,
+				Public:        opts.public,
 				GitopsRemote:  opts.gitopsRemote,
 				PullTokenFile: opts.pullTokenFile,
 
@@ -107,6 +110,7 @@ func newScaffoldCmd(opts *scaffoldOptions) *cobra.Command {
 	f.StringVar(&opts.router, "router", "", "T3 health-route location: app|pages (empty = auto-detect)")
 	f.StringVar(&opts.ghcrOrg, "ghcr-org", "tkayage", "GHCR org for the image ghcr.io/<org>/<slug> (CI + manifests)")
 	f.BoolVar(&opts.dryRun, "dry-run", false, "render app-repo files but skip the gitops publish/commit/push")
+	f.BoolVar(&opts.public, "public", false, "opt this app into public Cloudflare/AWS-edge exposure (default: LAN-only)")
 	f.StringVar(&opts.gitopsRemote, "gitops-remote", "", "override the gitops-homelab clone URL (empty = the real repo)")
 	f.StringVar(&opts.pullTokenFile, "pull-token-file", "", "file containing the GHCR read:packages token (or set GHCR_PULL_TOKEN)")
 

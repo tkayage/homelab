@@ -42,6 +42,8 @@ type Data struct {
 	// IsT3 selects the probe shape: T3 apps get httpGet /api/health probes,
 	// non-T3 apps get tcpSocket probes on the same named port.
 	IsT3 bool
+	// Public marks this app for explicit public exposure. False is LAN-only.
+	Public bool
 	// PullUsername / PullPassword / PullAuthB64 fill the dockerconfigjson pull
 	// secret. In this plan they carry dummy values in tests only; the real
 	// read:packages token is operator-provided and encrypted in plan 06-06.

@@ -2,6 +2,13 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{.Slug}}
+  annotations:
+    homelab.kayage.co/public: "{{if .Public}}true{{else}}false{{end}}"
+{{- if .Public }}
+    external-dns.alpha.kubernetes.io/hostname: {{.Slug}}.app.kayage.co
+    external-dns.alpha.kubernetes.io/target: public-edge.kayage.co
+    homelab.kayage.co/public-owner: homelab-platform-public-edge
+{{- end }}
 spec:
   ingressClassName: traefik
   rules:

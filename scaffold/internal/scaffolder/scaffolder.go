@@ -71,6 +71,9 @@ type Options struct {
 	// DryRun renders the app-repo files but skips gitops.Publish (no clone,
 	// encrypt, commit, or push). The report notes nothing was published.
 	DryRun bool
+	// Public opts the generated app into public Cloudflare/AWS-edge exposure.
+	// False means LAN-only through the Phase 4 wildcard local edge.
+	Public bool
 
 	// GitopsRemote overrides the gitops-homelab clone URL (a local bare repo in
 	// the offline test; empty = the real https://github.com/<org>/gitops-homelab).
@@ -312,6 +315,7 @@ func publishGitops(opts Options, appSlug, ghcrOrg string, port int, isT3 bool) (
 		GHCROrg:      ghcrOrg,
 		Port:         port,
 		IsT3:         isT3,
+		Public:       opts.Public,
 		PullUsername: pullUser,
 		PullPassword: opts.PullPassword,
 		PullAuthB64:  authB64,

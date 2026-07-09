@@ -136,12 +136,36 @@ func TestIngress(t *testing.T) {
 	for _, must := range []string{
 		"ingressClassName: traefik",
 		"host: myapp.app.kayage.co",
+		`homelab.kayage.co/public: "false"`,
 		"pathType: Prefix",
 		"name: http",
 	} {
 		if !strings.Contains(ing, must) {
 			t.Errorf("ingress missing %q", must)
 		}
+	}
+	if strings.Contains(ing, "external-dns.alpha.kubernetes.io/hostname") {
+		t.Fatalf("default LAN-only ingress must not include public external-dns annotations:\n%s", ing)
+	}
+}
+
+func TestIngressPublicOptIn(t *testing.T) {
+	data := t3Data()
+	data.Public = true
+	dir := mustRender(t, data)
+	ing := readFile(t, dir, "ingress.yaml")
+	for _, must := range []string{
+		`homelab.kayage.co/public: "true"`,
+		"external-dns.alpha.kubernetes.io/hostname: myapp.app.kayage.co",
+		"external-dns.alpha.kubernetes.io/target: public-edge.kayage.co",
+		"homelab.kayage.co/public-owner: homelab-platform-public-edge",
+	} {
+		if !strings.Contains(ing, must) {
+			t.Errorf("public ingress missing %q\n%s", must, ing)
+		}
+	}
+	if strings.Contains(ing, "*.app.kayage.co") {
+		t.Fatalf("public opt-in must not create a wildcard record:\n%s", ing)
 	}
 }
 
