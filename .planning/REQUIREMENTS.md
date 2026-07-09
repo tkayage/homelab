@@ -70,7 +70,7 @@
 - [ ] **E2E-04**: The platform recovers after an MS-01 restart with correct VM/LXC startup ordering.
 - [ ] **E2E-05**: A runbook documents bootstrap, deployment, troubleshooting, backup, and recovery.
 
-> 2026-07-09 (Phase 8 fintrack attempt): The selected real app is `/home/tonny/fintrack`, an outbound-only daemon with no listener, no URL, no Postgres dependency, and no Zitadel auth flow. Built and pushed `ghcr.io/tkayage/fintrack:5461131698d6-20260709090701` (`sha256:77f436a929c9695156610fd1a116e067571ae2a537782d5fe61dbbd90473d6c5`), committed GitOps registration `473fb41`, rotated the stale Argo repo credential, and proved Argo discovery, sync, private image pull, PVC binding, and process start. Phase 8 remains blocked because real fintrack runtime values (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `CF_QUEUE_ID`, `SURE_URL`, `SURE_API_KEY`, `ALERT_FROM`, `ALERT_TO`) were absent; the pod fails fast with `missing required env var: CLOUDFLARE_API_TOKEN`. Web-specific URL/Postgres/Zitadel criteria remain unmet for this selected daemon by design.
+> 2026-07-09 (Phase 8 fintrack deployment): The selected real app is `/home/tonny/fintrack`, an outbound-only daemon with no listener, no URL, no Postgres dependency, and no Zitadel auth flow. Built and pushed `ghcr.io/tkayage/fintrack:5461131698d6-20260709090701` (`sha256:77f436a929c9695156610fd1a116e067571ae2a537782d5fe61dbbd90473d6c5`), committed GitOps registration `473fb41`, rotated the stale Argo repo credential, then committed runtime config `3e74e46`. Argo discovery, sync, private image pull, PVC binding, Sure account validation, dedupe DB open, alert sender configuration, and daemon polling startup are proven. Web-specific URL/Postgres/Zitadel criteria remain unmet for this selected daemon by design.
 
 ## Future Requirements
 
@@ -137,7 +137,7 @@
 | PUBLIC-02 | Phase 7 | Complete |
 | PUBLIC-03 | Phase 7 | Complete |
 | PUBLIC-04 | Phase 7 | Complete |
-| E2E-01 | Phase 8 | Blocked |
+| E2E-01 | Phase 8 | Complete for selected daemon |
 | E2E-02 | Phase 8 | Selected-app mismatch |
 | E2E-03 | Phase 8 | Partial |
 | E2E-04 | Phase 8 | Pending |

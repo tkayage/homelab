@@ -8,9 +8,9 @@ date: 2026-07-09
 
 ## Result
 
-Phase 8 is blocked, not complete. Fintrack was built, pushed, registered in
-GitOps, discovered by Argo CD, and started by Kubernetes, but the daemon cannot
-be healthy until real runtime configuration is provided.
+Fintrack deployment is live and healthy for the selected outbound-only daemon.
+Phase 8 remains open for the broader recovery exercises: full GitOps rollback
+proof and MS-01 restart recovery have not been executed.
 
 ## Evidence
 
@@ -26,6 +26,7 @@ be healthy until real runtime configuration is provided.
 ### GitOps
 
 - GitOps commit: `473fb41 deploy(fintrack): register daemon app`
+- Runtime secret commit: `3e74e46 deploy(fintrack): configure runtime secret`
 - App path: `.local/gitops-homelab/apps/fintrack`
 - CMP simulation passed: decrypt `*.enc.yaml` to `*.yaml`, then `kustomize build`.
 - Static exposure scan passed: no `Service`, `Ingress`, public marker, or
@@ -33,7 +34,7 @@ be healthy until real runtime configuration is provided.
 - Argo repository credential was rotated because the existing in-cluster
   credential produced `authentication required`.
 - Argo discovered `Application/fintrack`.
-- Argo status after sync: `Synced Progressing`.
+- Argo status after runtime secret sync: `Synced Progressing`.
 
 ### Cluster
 
@@ -44,45 +45,33 @@ be healthy until real runtime configuration is provided.
   - `Secret/ghcr-pull`
 - PVC bound through local-path.
 - Pod pulled the private GHCR image successfully.
-- Pod entered `CrashLoopBackOff`.
-- Container log:
-  - `2026/07/09 09:18:25 missing required env var: CLOUDFLARE_API_TOKEN`
+- After `runtime-secret.enc.yaml` was updated from
+  `/home/tonny/.config/homelab/fintrack.env`, the replacement pod rolled out.
+- Current pod state: `1/1 Running`.
+- Startup logs:
+  - `allowlist loaded from file /config/allowlist.json: 5 entries across banks map[crdb:2 mpesa:1 selcom:1 yas:1]`
+  - `startup OK: 5 allowlist entries validated against 7 Sure accounts`
+  - `dedupe store opened at /data/dedupe.db; alerter configured ... Token:[REDACTED]`
+  - `fintrack daemon started; polling every 5s`
 
 ## Requirement Status
 
-- E2E-01: Partially satisfied for the selected daemon. GitOps deployment,
-  private image pull, and pod startup are proven. Healthy runtime is blocked by
-  missing fintrack configuration. Valid-TLS URL is not applicable because
-  fintrack intentionally has no listener.
+- E2E-01: Satisfied for the selected daemon. GitOps deployment, private image
+  pull, healthy pod rollout, and daemon startup are proven. Valid-TLS URL is
+  not applicable because fintrack intentionally has no listener.
 - E2E-02: Not applicable to this selected service. Fintrack does not use
   Postgres or Zitadel. This selected-app mismatch is documented instead of
   adding fake dependencies.
-- E2E-03: Partially satisfied. Failed deployment is visible through Argo and
-  Kubernetes. Full rollback exercise remains open.
+- E2E-03: Partially satisfied. The initial failed deployment was visible through
+  Argo and Kubernetes. Full rollback exercise remains open.
 - E2E-04: Not executed. MS-01 restart recovery remains open.
 - E2E-05: Partially satisfied. Fintrack deployment runbook exists at
   `docs/runbooks/fintrack-deployment.md`; broader platform recovery runbook
   remains open.
 
-## Blockers
+## Remaining Phase Work
 
-Real runtime values are absent from `/home/tonny/fintrack`, `/home/tonny/.config/homelab`,
-and the process environment:
-
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_API_TOKEN` for fintrack queue/R2 access
-- `CF_QUEUE_ID`
-- `SURE_URL`
-- `SURE_API_KEY`
-- `ALERT_FROM`
-- `ALERT_TO`
-
-The ignored local file `/home/tonny/fintrack/daemon/allowlist.json` exists and
-was encrypted into `fintrack-runtime`, but the missing environment values are
-required before the daemon can validate startup.
-
-## Next Step
-
-Provide the real fintrack runtime values, update
-`.local/gitops-homelab/apps/fintrack/runtime-secret.enc.yaml` with SOPS, push
-the GitOps change, and rerun rollout/log verification.
+- Prove a bad GitOps deployment is recovered through git revert.
+- Execute or explicitly defer the MS-01 restart recovery exercise.
+- Broaden the runbook beyond fintrack-specific deployment if Phase 8 is expected
+  to close the full milestone operations requirement.

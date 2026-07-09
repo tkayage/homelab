@@ -12,6 +12,7 @@ Service, Ingress, public exposure annotation, or inbound health listener.
 - Image: `ghcr.io/tkayage/fintrack:5461131698d6-20260709090701`
 - Image digest: `sha256:77f436a929c9695156610fd1a116e067571ae2a537782d5fe61dbbd90473d6c5`
 - GitOps commit: `473fb41 deploy(fintrack): register daemon app`
+- Runtime secret commit: `3e74e46 deploy(fintrack): configure runtime secret`
 
 The workload has:
 
@@ -37,6 +38,10 @@ The daemon will not become healthy until `fintrack-runtime` contains real values
 Do not commit plaintext runtime values. Update `apps/fintrack/runtime-secret.enc.yaml`
 by rendering a plaintext `runtime-secret.yaml` in a private temporary directory,
 encrypting it with SOPS, then replacing only the encrypted file.
+
+The private operator copy currently lives at:
+
+- `/home/tonny/.config/homelab/fintrack.env` with mode `0600`
 
 ## Verify
 
