@@ -284,3 +284,58 @@ func TestRunDryRunSkipsPublish(t *testing.T) {
 		t.Errorf("dry-run GitopsCommit = %q, want empty", res.GitopsCommit)
 	}
 }
+
+func TestRunNonDryRunRequiresPullToken(t *testing.T) {
+	requireTool(t, "git")
+	requireTool(t, "sops")
+	requireTool(t, "kustomize")
+
+	appDir := t.TempDir()
+	initRepo(t, appDir, map[string]string{
+		"package.json":   `{"name":"needs-token","dependencies":{"next":"14.0.0"}}`,
+		"next.config.js": "module.exports = { output: 'standalone' };\n",
+		"app/page.tsx":   "export default function Page(){return null}\n",
+	})
+
+	opts := setupGitops(t)
+	opts.Dir = appDir
+	opts.Slug = "needs-token"
+	opts.PullPassword = ""
+
+	_, err := Run(opts)
+	if err == nil {
+		t.Fatal("Run without a pull token succeeded; want fail-closed error")
+	}
+	if !strings.Contains(err.Error(), "GHCR_PULL_TOKEN") || strings.Contains(err.Error(), "dummy") {
+		t.Fatalf("error should name safe token mechanisms without leaking token detail, got: %v", err)
+	}
+}
+
+func TestRunUsesPullTokenFile(t *testing.T) {
+	requireTool(t, "git")
+	requireTool(t, "sops")
+	requireTool(t, "kustomize")
+
+	appDir := t.TempDir()
+	initRepo(t, appDir, map[string]string{
+		"package.json":   `{"name":"file-token","dependencies":{"next":"14.0.0"}}`,
+		"next.config.js": "module.exports = { output: 'standalone' };\n",
+		"app/page.tsx":   "export default function Page(){return null}\n",
+	})
+
+	tokenFile := filepath.Join(t.TempDir(), "ghcr-token")
+	if err := os.WriteFile(tokenFile, []byte("file-token-value\n"), 0o600); err != nil {
+		t.Fatalf("write token file: %v", err)
+	}
+
+	opts := setupGitops(t)
+	opts.Dir = appDir
+	opts.Slug = "file-token"
+	opts.PullPassword = ""
+	opts.PullTokenFile = tokenFile
+
+	if _, err := Run(opts); err != nil {
+		t.Fatalf("Run with pull token file: %v", err)
+	}
+	assertGitopsRegistered(t, opts.GitopsRemote, "file-token")
+}

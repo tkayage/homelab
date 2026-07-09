@@ -149,6 +149,39 @@ func TestGitPublishReSync(t *testing.T) {
 	}
 }
 
+func TestPublishCleansPlaintextSecretOnEncryptionFailure(t *testing.T) {
+	requireGit(t)
+
+	base := t.TempDir()
+	origin := filepath.Join(base, "origin.git")
+	runGitT(t, base, "init", "--bare", "-b", "main", origin)
+	worktree := filepath.Join(base, ".local", "gitops-homelab")
+	githubEnv := filepath.Join(base, "github.env")
+	if err := os.WriteFile(githubEnv, []byte("GITHUB_TOKEN=dummy\n"), 0o600); err != nil {
+		t.Fatalf("write github.env: %v", err)
+	}
+
+	cfg := Config{
+		RepoURL:       origin,
+		Worktree:      worktree,
+		GitHubEnv:     githubEnv,
+		AgeRecipient:  "age1notavalidrecipient",
+		AgeKeyFile:    filepath.Join(base, "missing-age-key.txt"),
+		SkipPreflight: true,
+	}
+	data := manifests.Data{Slug: "failsops", GHCROrg: "tkayage", Port: 3000, IsT3: true,
+		PullUsername: "tkayage", PullPassword: "dummy-throwaway-token", PullAuthB64: "eA=="}
+
+	err := Publish(cfg, "failsops", data)
+	if err == nil {
+		t.Fatal("Publish with invalid SOPS config succeeded; want encryption failure")
+	}
+	plain := filepath.Join(worktree, "apps", "failsops", "pull-secret.yaml")
+	if _, statErr := os.Stat(plain); !os.IsNotExist(statErr) {
+		t.Fatalf("plaintext pull-secret survived failed publish at %s: %v", plain, statErr)
+	}
+}
+
 func requireGit(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {

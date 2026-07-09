@@ -214,6 +214,17 @@ func TestPullSecret(t *testing.T) {
 	}
 }
 
+func TestPullSecretFileModeIsRestrictive(t *testing.T) {
+	dir := mustRender(t, t3Data())
+	info, err := os.Stat(filepath.Join(dir, "pull-secret.yaml"))
+	if err != nil {
+		t.Fatalf("stat pull-secret.yaml: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("pull-secret.yaml mode = %o, want 0600", got)
+	}
+}
+
 // TestKustomizeBuild proves the rendered manifest set is buildable by stock
 // kustomize once the pull secret is in its decrypted (plaintext) state — which
 // is exactly what Render writes. It shells out to `kustomize build`, asserts a
