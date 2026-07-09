@@ -40,7 +40,7 @@
 - [x] **SERV-06**: Applications integrate with the existing Zitadel deployment without replacing it.
 - [x] **SERV-07**: Postgres has a verified off-host backup and restore procedure.
 
-> 2026-07-08 (05-06 gap closure): SERV-07 live-verified. Workstation 10.10.30.70 wrote a non-empty, gzip-valid pg_dumpall to `10.10.40.2:/volume1/homelab-backups/postgres`; that exact NAS pathname restored into a disposable postgres:17 container on services-01 and reconstructed the Debezium role. See 05-VERIFICATION.md.
+> 2026-07-09 (05-07 hardening closure): SERV-07 live-verified with the hardened canonical procedure. Workstation 10.10.30.70 wrote `/mnt/pg-backup/postgres/pg_dumpall_20260709_081019.sql.gz`; restore-test copied that exact NAS artifact to a private local snapshot, reported SHA-256 `e6b85d04a11a7e3508770702604a996dd8eace9f9340abdf599d42f908a30e15`, restored it into a disposable postgres:17 container on services-01 with SQL error-stop semantics, and asserted restored Debezium role plus database state. See 05-VERIFICATION.md.
 
 ### Scaffolding
 

@@ -10,7 +10,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 - [x] **Phase 2: Reproducible k3s Foundation** - Provision and rebuild the single-node disposable application cluster. (completed 2026-07-07)
 - [x] **Phase 3: GitOps and Secrets Bootstrap** - Establish Argo CD reconciliation, application discovery, health visibility, and rebuild-safe secrets. (completed 2026-07-07)
 - [x] **Phase 4: Local DNS, Proxy, and TLS** - Deliver automatic valid-TLS LAN exposure through Mikrotik, NPM, and Traefik. (completed 2026-07-07)
-- [~] **Phase 5: Shared Stateful Services** - Provision and integrate native Postgres, Valkey, NATS, Debezium, and existing Zitadel services. (verification gaps found after code review; 05-07 pending)
+- [x] **Phase 5: Shared Stateful Services** - Provision and integrate native Postgres, Valkey, NATS, Debezium, and existing Zitadel services. (completed 2026-07-09)
 - [x] **Phase 6: Build Pipeline and Project Scaffolding** - Turn one command and a git push into a deployed private image. (completed 2026-07-08)
 - [ ] **Phase 7: Opt-in Public Exposure** - Add explicit, default-deny public routing through Cloudflare and the AWS Mikrotik.
 - [ ] **Phase 8: End-to-End Validation and Operations** - Prove the platform with a real app, recovery exercises, and an operator runbook.
@@ -124,7 +124,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   4. Applications can use the existing Zitadel deployment through its valid-TLS hostname.
   5. A Postgres backup stored away from the source LXC restores successfully into a scratch instance.
 
-**Plans**: 6/7 plans complete
+**Plans**: 7/7 plans complete
 
 **Wave 1**
 
@@ -141,7 +141,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 
 **Wave 4** *(blocked on Wave 3; added 2026-07-08 — plans 01-04 produced artifacts but no plan ran the deployment; see amended 05-VERIFICATION.md)*
 
-- [~] 05-05-PLAN.md — deployed postgres-01 + services-01, Compose stack, k3s discovery live-verified (SERV-01..06). SERV-07: workstation-mediated backup; restore live-verified into a disposable scratch instance; only the off-host NAS write pending one operator action (grant workstation 10.10.30.70 rw on 10.10.40.2:/volume1/homelab-backups)
+- [x] 05-05-PLAN.md — deployed postgres-01 + services-01, Compose stack, k3s discovery live-verified (SERV-01..06). SERV-07 required later NAS backup hardening closure.
 
 **Wave 5** *(blocked on Wave 4; gap closure for SERV-07)*
 
@@ -149,7 +149,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 
 **Wave 6** *(blocked on Wave 5; gap closure for SERV-07 hardening review defects)*
 
-- [ ] 05-07-PLAN.md — harden canonical NAS containment, exact-byte snapshot restore, remote shell argument safety, and SQL restore failure handling; rerun live NAS backup/restore before re-closing SERV-07
+- [x] 05-07-PLAN.md — hardened canonical NAS containment, exact-byte snapshot restore, remote shell argument safety, and SQL restore failure handling; reran live NAS backup/restore before re-closing SERV-07
 
 ### Phase 6: Build Pipeline and Project Scaffolding
 
@@ -229,7 +229,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 | 2. Reproducible k3s Foundation | 1/1 | Complete    | 2026-07-07 |
 | 3. GitOps and Secrets Bootstrap | 1/1 | Complete | 2026-07-07 |
 | 4. Local DNS, Proxy, and TLS | 1/1 | Complete | 2026-07-07 |
-| 5. Shared Stateful Services | 6/7 | Gaps found | - |
+| 5. Shared Stateful Services | 7/7 | Complete | 2026-07-09 |
 | 6. Build Pipeline and Project Scaffolding | 8/8 | Complete   | 2026-07-08 |
 | 7. Opt-in Public Exposure | 0/TBD | Not started | - |
 | 8. End-to-End Validation and Operations | 0/TBD | Not started | - |
