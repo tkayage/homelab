@@ -34,9 +34,82 @@ svc_host=${SERVICES_SSH_HOST:-10.10.30.101}
 svc_user=${SERVICES_SSH_USER:-ubuntu}
 scratch_image=${POSTGRES_SCRATCH_IMAGE:-postgres:17}
 scratch_name=${POSTGRES_SCRATCH_NAME:-pg-restore-verify}
+RESTORE_TMP=""
+RESTORE_SCRATCH=""
 
 fail() { printf 'ERROR %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null || fail "dependency missing: $1"; }
+
+validate_backup_subdir() {
+  local value=$1
+  [[ -n "$value" ]] || fail "POSTGRES_BACKUP_SUBDIR must not be empty"
+  [[ "$value" != "." && "$value" != ".." ]] || fail "POSTGRES_BACKUP_SUBDIR must be a safe relative component"
+  [[ "$value" =~ ^[A-Za-z0-9._-]+$ ]] || fail "POSTGRES_BACKUP_SUBDIR must contain only letters, numbers, dot, underscore, or dash"
+  [[ "$value" != */* && "$value" != *[[:space:]]* ]] || fail "POSTGRES_BACKUP_SUBDIR must be one relative path component"
+  printf '%s\n' "$value"
+}
+
+validate_scratch_name() {
+  local value=$1
+  [[ "$value" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]] \
+    || fail "POSTGRES_SCRATCH_NAME is not a safe Docker container name"
+  printf '%s\n' "$value"
+}
+
+validate_scratch_image() {
+  local value=$1
+  [[ "$value" =~ ^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,255}$ ]] \
+    || fail "POSTGRES_SCRATCH_IMAGE is not a safe Docker image reference"
+  [[ "$value" != *..* && "$value" != *//* ]] \
+    || fail "POSTGRES_SCRATCH_IMAGE contains an unsafe path sequence"
+  printf '%s\n' "$value"
+}
+
+require_beneath() {
+  local parent=$1 child=$2 label=$3
+  case "$child" in
+    "$parent"/*) ;;
+    *) fail "$label resolves outside $parent: $child" ;;
+  esac
+}
+
+reject_symlink_components() {
+  local path=$1 current="/"
+  [[ "$path" == /* ]] || fail "path must be absolute: $path"
+  IFS='/' read -r -a parts <<< "${path#/}"
+  for part in "${parts[@]}"; do
+    [[ -n "$part" ]] || continue
+    current="${current%/}/$part"
+    sudo test ! -L "$current" || fail "path component must not be a symbolic link: $current"
+  done
+}
+
+resolve_backup_destination() {
+  local subdir dest mount_real dest_real
+  subdir=$(validate_backup_subdir "$backup_subdir")
+  dest="$backup_mount/$subdir"
+  sudo mkdir -p "$dest"
+  reject_symlink_components "$dest"
+  mount_real=$(sudo realpath -e "$backup_mount")
+  dest_real=$(sudo realpath -e "$dest")
+  require_beneath "$mount_real" "$dest_real" "backup destination"
+  printf '%s\n' "$dest"
+}
+
+cleanup_restore_test() {
+  local status=$?
+  if [[ -n "$RESTORE_SCRATCH" ]]; then
+    ssh_svc bash -s -- "$RESTORE_SCRATCH" <<'EOF' >/dev/null 2>&1 || true
+set -euo pipefail
+docker rm -f "$1" >/dev/null 2>&1 || true
+EOF
+  fi
+  if [[ -n "$RESTORE_TMP" ]]; then
+    rm -rf "$RESTORE_TMP"
+  fi
+  umount_backup
+  exit "$status"
+}
 
 load_environment() {
   need tofu; need jq; need curl; need ssh; need openssl
@@ -152,8 +225,7 @@ backup_postgres() {
   load_environment
   mount_backup
   trap umount_backup EXIT
-  local dest="$backup_mount/$backup_subdir"
-  sudo mkdir -p "$dest"
+  local dest; dest=$(resolve_backup_destination)
   local ts file; ts=$(date +%Y%m%d_%H%M%S); file="$dest/pg_dumpall_${ts}.sql.gz"
   if ssh_lxc "sudo -u postgres pg_dumpall --clean --if-exists" | gzip | sudo tee "$file" >/dev/null; then
     sudo test -s "$file" || fail "backup is empty: $file"
@@ -174,35 +246,90 @@ restore_test() {
   [[ $# -eq 1 ]] || fail "usage: $0 restore-test <backup-path>"
   local backup_path=$1
   load_environment
+  scratch_name=$(validate_scratch_name "$scratch_name")
+  scratch_image=$(validate_scratch_image "$scratch_image")
   mount_backup
-  trap 'ssh_svc "docker rm -f $scratch_name >/dev/null 2>&1" >/dev/null 2>&1 || true; umount_backup' EXIT
-  local dest="$backup_mount/$backup_subdir"
+  RESTORE_SCRATCH=$scratch_name
+  trap cleanup_restore_test EXIT
+  local dest dest_real backup_real
+  dest=$(resolve_backup_destination)
+  dest_real=$(sudo realpath -e "$dest")
   [[ "$backup_path" == "$dest"/pg_dumpall_*.sql.gz ]] \
     || fail "backup path must match $dest/pg_dumpall_*.sql.gz"
   [[ "$(dirname "$backup_path")" == "$dest" ]] \
     || fail "backup path is outside $dest"
-  sudo test ! -L "$backup_path" || fail "backup path must not be a symbolic link: $backup_path"
+  reject_symlink_components "$backup_path"
   sudo test -f "$backup_path" && sudo test -s "$backup_path" \
     || fail "backup is missing or empty: $backup_path"
-  sudo gzip -t "$backup_path" || fail "backup is not gzip-valid: $backup_path"
+  backup_real=$(sudo realpath -e "$backup_path")
+  require_beneath "$dest_real" "$backup_real" "backup artifact"
 
-  ssh_svc "docker rm -f $scratch_name >/dev/null 2>&1; docker run -d --name $scratch_name -e POSTGRES_PASSWORD=verify $scratch_image >/dev/null"
+  RESTORE_TMP=$(mktemp -d)
+  chmod 700 "$RESTORE_TMP"
+  local snapshot digest
+  snapshot="$RESTORE_TMP/backup.sql.gz"
+  sudo cat "$backup_path" > "$snapshot"
+  chmod 600 "$snapshot"
+  sudo test -s "$snapshot" || fail "backup snapshot is empty: $backup_path"
+  digest=$(sha256sum "$snapshot" | awk '{print $1}')
+  gzip -t "$snapshot" || fail "backup snapshot is not gzip-valid: $backup_path"
+
+  ssh_svc bash -s -- "$scratch_name" "$scratch_image" <<'EOF'
+set -euo pipefail
+name=$1
+image=$2
+docker rm -f "$name" >/dev/null 2>&1 || true
+docker run -d --name "$name" -e POSTGRES_PASSWORD=verify "$image" >/dev/null
+EOF
   local ready=
   for _ in $(seq 1 30); do
-    if ssh_svc "docker exec $scratch_name pg_isready -U postgres -q" 2>/dev/null; then ready=1; break; fi
+    if ssh_svc bash -s -- "$scratch_name" <<'EOF' 2>/dev/null; then ready=1; break; fi
+set -euo pipefail
+docker exec "$1" pg_isready -U postgres -q
+EOF
     sleep 3
   done
   [[ -n "$ready" ]] || fail "scratch instance did not become ready"
 
-  sudo cat "$backup_path" | gunzip | ssh_svc "docker exec -i $scratch_name psql -U postgres -v ON_ERROR_STOP=0" >/dev/null 2>&1
+  local restore_cmd
+  restore_cmd="bash -c 'set -euo pipefail
+name=\$1
+restore_log=\$(mktemp)
+if ! docker exec -i \"\$name\" psql -U postgres -v ON_ERROR_STOP=1 >\"\$restore_log\" 2>&1; then
+  printf \"restore failed; output follows\\n\" >&2
+  cat \"\$restore_log\" >&2
+  rm -f \"\$restore_log\"
+  exit 1
+fi
+rm -f \"\$restore_log\"' bash '$scratch_name'"
+  if ! gunzip -c "$snapshot" \
+    | sed -e '/^DROP ROLE IF EXISTS postgres;$/d' -e '/^CREATE ROLE postgres;$/d' \
+    | ssh_svc "$restore_cmd"; then
+    fail "SQL restore failed for $backup_path"
+  fi
   local roles dbs
-  roles=$(ssh_svc "docker exec $scratch_name psql -U postgres -Atqc \"SELECT count(*) FROM pg_roles WHERE rolname='debezium' AND rolreplication AND rolcanlogin\"")
-  dbs=$(ssh_svc "docker exec $scratch_name psql -U postgres -Atqc \"SELECT count(*) FROM pg_database WHERE datistemplate=false\"")
-  ssh_svc "docker rm -f $scratch_name >/dev/null"
+  roles=$(ssh_svc bash -s -- "$scratch_name" <<'EOF'
+set -euo pipefail
+docker exec "$1" psql -U postgres -Atqc "SELECT count(*) FROM pg_roles WHERE rolname='debezium' AND rolreplication AND rolcanlogin"
+EOF
+)
+  dbs=$(ssh_svc bash -s -- "$scratch_name" <<'EOF'
+set -euo pipefail
+docker exec "$1" psql -U postgres -Atqc "SELECT count(*) FROM pg_database WHERE datistemplate=false"
+EOF
+)
+  ssh_svc bash -s -- "$scratch_name" <<'EOF' >/dev/null
+set -euo pipefail
+docker rm -f "$1" >/dev/null
+EOF
+  RESTORE_SCRATCH=""
+  rm -rf "$RESTORE_TMP"
+  RESTORE_TMP=""
   umount_backup
   trap - EXIT
   [[ "$roles" == 1 ]] || fail "restore verification failed: debezium role not reconstructed (roles=$roles)"
-  printf 'Restore verification passed for %s (scratch %s: debezium role reconstructed, %s database(s) restored)\n' "$backup_path" "$scratch_image" "$dbs"
+  [[ "$dbs" =~ ^[0-9]+$ && "$dbs" -ge 1 ]] || fail "restore verification failed: restored database count unavailable or zero (dbs=$dbs)"
+  printf 'Restore verification passed for %s (sha256=%s, scratch %s: debezium role reconstructed, %s database(s) restored)\n' "$backup_path" "$digest" "$scratch_image" "$dbs"
 }
 
 destroy_postgres() {
