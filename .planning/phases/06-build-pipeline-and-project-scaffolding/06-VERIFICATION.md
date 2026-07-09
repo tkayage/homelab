@@ -1,33 +1,33 @@
 ---
 phase: 06-build-pipeline-and-project-scaffolding
-verified: 2026-07-09T08:26:00Z
-status: gaps_found
-score: 5/8
-behavior_unverified: 1
+verified: 2026-07-09T08:28:46Z
+status: passed
+score: 8/8
+behavior_unverified: 0
 overrides_applied: 0
-gaps:
+gaps: []
+closed_gaps:
   - id: SCAF-04-PULL-SECRET-TOKEN
     requirement: SCAF-04
-    severity: blocker
-    description: "Real scaffolder runs can publish a GHCR pull secret with an empty password because PullPassword is only supplied by hidden offline-test flags."
+    closed_by: 06-09
+    evidence: "go test -C scaffold ./...; TestRunNonDryRunRequiresPullToken; TestRunUsesPullTokenFile"
   - id: SCAF-04-PLAINTEXT-SECRET-LIFETIME
     requirement: SCAF-04
-    severity: blocker
-    description: "Plaintext pull-secret.yaml is rendered through the shared 0644 template path and can remain in the persistent gitops worktree if SOPS encryption fails."
+    closed_by: 06-09
+    evidence: "go test -C scaffold ./...; TestPullSecretFileModeIsRestrictive; TestPublishCleansPlaintextSecretOnEncryptionFailure"
   - id: GITOPS-04-PUSH-RETRY-FALSE-SUCCESS
     requirement: GITOPS-04
-    severity: blocker
-    description: "The generated GitHub Actions gitops push retry loop exits 0 after all pull/push retries fail, so a deployment workflow can appear green while no GitOps bump was pushed."
+    closed_by: 06-09
+    evidence: "go test -C scaffold ./...; TestWorkflowStructuralInvariants; retry-loop reproduction exits nonzero"
 ---
 
 # Phase 06 Verification
 
 ## Verdict
 
-Phase 6 is **not yet verified complete**. The scaffolder implementation, templates,
-and offline fixture harness pass their automated checks, but the production operator
-path still has three release-blocking gaps that can produce non-functional private
-image pulls, leave plaintext credentials on disk, or silently skip GitOps image bumps.
+Phase 6 is **verified complete**. The original scaffolder implementation, templates,
+and offline fixture harness passed automated checks, and Plan 06-09 closed the three
+production-path blockers found during verification.
 
 ## Requirement Results
 
@@ -36,79 +36,65 @@ image pulls, leave plaintext credentials on disk, or silently skip GitOps image 
 | SCAF-01 | VERIFIED | Cobra scaffolder exists, validates slug/repo inputs, and the offline T3/non-T3 fixture runs complete through the real binary. |
 | SCAF-02 | VERIFIED | T3 Dockerfile, health routes, and deploy workflow templates render and are covered by Go tests plus `scaffold-verify.sh`. |
 | SCAF-03 | VERIFIED | GitOps manifests render under `apps/<slug>/`, SOPS ciphertext is committed, and kustomize builds in the offline harness. |
-| SCAF-04 | FAILED (BLOCKER) | Generated workloads include probes, but private GHCR pull credential handling is unsafe/non-functional in real runs. |
+| SCAF-04 | VERIFIED | Generated workloads include probes; private GHCR pull credentials now fail closed when absent, support env/file input, render plaintext with mode 0600, and clean plaintext on failure/success. |
 | SCAF-05 | VERIFIED | The scaffolder reports generated files, GitOps path/commit, expected URL, Argo app, port, and warnings. |
 | SCAF-06 | VERIFIED | The non-T3 fixture's Dockerfile remains byte-unchanged after scaffolding; T3 fixture generation passes offline validation. |
-| GITOPS-03 | DEFERRED | Offline harness proves generated build/publish workflow shape, action pins, and image naming. Full live GHCR build is intentionally deferred to the Phase 8 validation app. |
-| GITOPS-04 | FAILED (BLOCKER) | Generated CI can silently succeed without pushing the GitOps image bump when push contention persists. |
+| GITOPS-03 | VERIFIED (OFFLINE) | Offline harness proves generated build/publish workflow shape, action pins, image naming, actionlint validity, and generated GHCR image references. Full live GHCR build remains part of Phase 8 validation-app proof. |
+| GITOPS-04 | VERIFIED | Generated CI updates the GitOps image reference shape and now fails the workflow when all push retries are exhausted instead of reporting a false green run. Full live Argo reconciliation remains part of Phase 8 validation-app proof. |
 
 ## Automated Checks
 
 - `go test -C scaffold ./...` - PASS
 - `bash scripts/scaffold-verify.sh all` - PASS
-- Workflow push-loop reproduction under `bash --noprofile --norc -e -o pipefail` - FAILS SAFETY: the current retry loop exits 0 after repeated failures.
+- Retry-loop reproduction under `bash --noprofile --norc -e -o pipefail` - PASS: exhausted retries exit nonzero.
 
-## Blocking Gaps
+## Closed Blocking Gaps
 
 ### 1. Real runs can publish an empty GHCR pull password
 
-`scaffold/internal/scaffolder/scaffolder.go` builds the dockerconfigjson auth from
-`opts.PullPassword`, but the only CLI path for that value is the hidden
-`--pull-password` offline seam. A normal operator run therefore encrypts and commits
-a pull secret whose password is empty, causing private GHCR pulls to fail.
+**Status:** CLOSED by Plan 06-09.
 
-**Required fix:** add an operator-safe credential input path, fail closed when a
-non-dry-run publish lacks a pull token, and avoid passing real tokens through a
-process-list-visible CLI flag.
+The scaffolder now resolves the real pull token from `--pull-token-file` or
+`GHCR_PULL_TOKEN`, keeps hidden `--pull-password` as a dummy/offline seam only,
+and fails non-dry-run publish before GitOps registration when no pull token is
+resolved.
+
+**Evidence:** `TestRunNonDryRunRequiresPullToken`, `TestRunUsesPullTokenFile`,
+and full `go test -C scaffold ./...`.
 
 ### 2. Plaintext pull secret is world-readable and can persist on failure
 
-`manifests.Render` writes `pull-secret.yaml` through `templates.RenderToFile`, which
-uses mode `0644` for every template. If SOPS encryption fails, `gitops.Publish`
-returns before `encryptPullSecretWith` removes the plaintext, leaving the
-dockerconfigjson token in the persistent worktree.
+**Status:** CLOSED by Plan 06-09.
 
-**Required fix:** render the plaintext pull secret with restrictive permissions and
-guarantee cleanup on all failure paths before returning from publish.
+`pull-secret.yaml` now renders with mode `0600`, and `gitops.Publish` removes the
+plaintext secret before render and via deferred best-effort cleanup on all return
+paths after render, including SOPS failures.
+
+**Evidence:** `TestPullSecretFileModeIsRestrictive`,
+`TestPublishCleansPlaintextSecretOnEncryptionFailure`, and full
+`go test -C scaffold ./...`.
 
 ### 3. GitOps push retry loop reports success after all retries fail
 
-The generated workflow uses:
+**Status:** CLOSED by Plan 06-09.
 
-```bash
-for i in 1 2 3; do
-  git pull --rebase origin main && git push origin main && break
-  sleep $((RANDOM % 5 + 2))
-done
-```
+The generated workflow now tracks `pushed=0`, sets success only after a completed
+`git push`, and exits 1 with a GitHub Actions error annotation after all retries
+are exhausted.
 
-Under GitHub Actions' `bash -e -o pipefail`, failures inside the `&&` list do not
-abort the step, and the final `sleep` exits 0. A workflow can therefore finish green
-without pushing the GitOps image bump.
-
-**Required fix:** track a `pushed` flag and explicitly `exit 1` after exhausted
-retries; update the workflow golden file and add a structural test for the failure
-branch.
+**Evidence:** `TestWorkflowStructuralInvariants`, updated workflow golden, full
+`go test -C scaffold ./...`, and targeted shell reproduction showing the exhausted
+retry branch exits nonzero.
 
 ## Deferred Live Evidence
 
 The full push -> GHCR image -> GitOps bump -> Argo deploy proof remains deferred to
-the Phase 8 validation app, as documented in `06-VALIDATION.md` and `06-08-SUMMARY.md`.
-That deferral is acceptable only after the three production-path blockers above are
-fixed, because Phase 8 depends on the generated scaffolder contract.
-
-## Next Action
-
-Create gap-closure plans for Phase 6:
-
-`$gsd-plan-phase 6 --gaps`
-
-Then execute only the generated gap plans:
-
-`$gsd-execute-phase 6 --gaps-only`
+the Phase 8 validation app, as documented in `06-VALIDATION.md` and the Phase 8
+roadmap. That deferral is acceptable now that the three production-path blockers
+above are closed.
 
 ## Verification Complete
 
-**Status:** `gaps_found`
+**Status:** `passed`
 
-**Score:** 5/8 requirements verified or acceptably deferred; 3 blocking gaps remain.
+**Score:** 8/8 requirements verified or acceptably deferred to Phase 8 live validation.

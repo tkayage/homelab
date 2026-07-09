@@ -11,7 +11,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 - [x] **Phase 3: GitOps and Secrets Bootstrap** - Establish Argo CD reconciliation, application discovery, health visibility, and rebuild-safe secrets. (completed 2026-07-07)
 - [x] **Phase 4: Local DNS, Proxy, and TLS** - Deliver automatic valid-TLS LAN exposure through Mikrotik, NPM, and Traefik. (completed 2026-07-07)
 - [x] **Phase 5: Shared Stateful Services** - Provision and integrate native Postgres, Valkey, NATS, Debezium, and existing Zitadel services. (completed 2026-07-09)
-- [x] **Phase 6: Build Pipeline and Project Scaffolding** - Turn one command and a git push into a deployed private image. (completed 2026-07-08)
+- [x] **Phase 6: Build Pipeline and Project Scaffolding** - Turn one command and a git push into a deployed private image. (completed 2026-07-09)
 - [ ] **Phase 7: Opt-in Public Exposure** - Add explicit, default-deny public routing through Cloudflare and the AWS Mikrotik.
 - [ ] **Phase 8: End-to-End Validation and Operations** - Prove the platform with a real app, recovery exercises, and an operator runbook.
 
@@ -164,7 +164,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   4. The scaffolder reports generated files, deployment health, and the expected valid-TLS URL.
   5. A generic non-T3 container can use the same deployment contract without adopting T3-specific build logic.
 
-**Plans**: 8/8 plans complete
+**Plans**: 9/9 plans complete
 
 **Wave 1**
 
@@ -191,6 +191,10 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 **Wave 6** *(blocked on Wave 5)*
 
 - [x] 06-08-PLAN.md — fixture validation (scaffold-verify.sh) + operator-token checkpoint
+
+**Wave 7** *(blocked on Wave 6; gap closure for Phase 6 verification blockers)*
+
+- [x] 06-09-PLAN.md — hardened GHCR pull-token input, plaintext pull-secret lifetime, and GitOps push retry failure handling
 
 ### Phase 7: Opt-in Public Exposure
 

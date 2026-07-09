@@ -17,8 +17,8 @@
 
 - [x] **GITOPS-01**: Argo CD reconciles the platform repository automatically.
 - [x] **GITOPS-02**: Adding an app directory automatically registers and deploys the application.
-- [ ] **GITOPS-03**: Application repositories build and publish versioned images to GHCR on push.
-- [ ] **GITOPS-04**: CI updates the GitOps image reference and triggers deployment without manual cluster commands.
+- [x] **GITOPS-03**: Application repositories build and publish versioned images to GHCR on push.
+- [x] **GITOPS-04**: CI updates the GitOps image reference and triggers deployment without manual cluster commands.
 - [x] **GITOPS-05**: Secrets remain encrypted in git and recoverable after cluster replacement.
 - [x] **GITOPS-06**: Operator can inspect deployment health and roll back through git revert.
 
@@ -44,12 +44,14 @@
 
 ### Scaffolding
 
-- [ ] **SCAF-01**: Operator can scaffold any containerizable project with one command.
-- [ ] **SCAF-02**: Scaffolding generates or validates its Dockerfile and GitHub Actions workflow.
-- [ ] **SCAF-03**: Scaffolding creates the application's GitOps configuration from one canonical slug.
-- [ ] **SCAF-04**: Generated workloads include health probes and private GHCR pull credentials.
-- [ ] **SCAF-05**: Scaffolding reports created resources, deployment status, and the expected URL.
-- [ ] **SCAF-06**: T3 applications work out of the box while non-T3 containers can provide their own image configuration.
+- [x] **SCAF-01**: Operator can scaffold any containerizable project with one command.
+- [x] **SCAF-02**: Scaffolding generates or validates its Dockerfile and GitHub Actions workflow.
+- [x] **SCAF-03**: Scaffolding creates the application's GitOps configuration from one canonical slug.
+- [x] **SCAF-04**: Generated workloads include health probes and private GHCR pull credentials.
+- [x] **SCAF-05**: Scaffolding reports created resources, deployment status, and the expected URL.
+- [x] **SCAF-06**: T3 applications work out of the box while non-T3 containers can provide their own image configuration.
+
+> 2026-07-09 (06-09 gap closure): Phase 6 verified complete after hardening the scaffolder's production path. Non-dry-run publish now requires a GHCR pull token from `--pull-token-file` or `GHCR_PULL_TOKEN`, plaintext `pull-secret.yaml` is mode 0600 and removed on success/failure, and the generated GitHub Actions GitOps push retry loop exits nonzero after exhausted retries. Offline proof: `go test -C scaffold ./...` and `bash scripts/scaffold-verify.sh all`. Live push -> GHCR -> GitOps -> Argo validation remains the Phase 8 validation-app proof.
 
 ### Public Exposure
 
@@ -105,8 +107,8 @@
 | INFRA-04 | Phase 2 | Complete |
 | GITOPS-01 | Phase 3 | Complete |
 | GITOPS-02 | Phase 3 | Complete |
-| GITOPS-03 | Phase 6 | Pending |
-| GITOPS-04 | Phase 6 | Pending |
+| GITOPS-03 | Phase 6 | Complete |
+| GITOPS-04 | Phase 6 | Complete |
 | GITOPS-05 | Phase 3 | Complete |
 | GITOPS-06 | Phase 3 | Complete |
 | EDGE-01 | Phase 4 | Complete |
@@ -121,12 +123,12 @@
 | SERV-05 | Phase 5 | Complete |
 | SERV-06 | Phase 5 | Complete |
 | SERV-07 | Phase 5 | Complete |
-| SCAF-01 | Phase 6 | Pending |
-| SCAF-02 | Phase 6 | Pending |
-| SCAF-03 | Phase 6 | Pending |
-| SCAF-04 | Phase 6 | Pending |
-| SCAF-05 | Phase 6 | Pending |
-| SCAF-06 | Phase 6 | Pending |
+| SCAF-01 | Phase 6 | Complete |
+| SCAF-02 | Phase 6 | Complete |
+| SCAF-03 | Phase 6 | Complete |
+| SCAF-04 | Phase 6 | Complete |
+| SCAF-05 | Phase 6 | Complete |
+| SCAF-06 | Phase 6 | Complete |
 | PUBLIC-01 | Phase 7 | Pending |
 | PUBLIC-02 | Phase 7 | Pending |
 | PUBLIC-03 | Phase 7 | Pending |
@@ -145,4 +147,4 @@
 
 ---
 *Requirements defined: 2026-07-07*
-*Last updated: 2026-07-07 after v1.0 roadmap creation*
+*Last updated: 2026-07-09 after Phase 6 scaffolder gap closure*
