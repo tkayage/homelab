@@ -231,7 +231,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 
 **Wave 1**
 
-- [x] 08-01-PLAN.md — selected `/home/tonny/fintrack`, built and pushed the real image, registered `apps/fintrack` in GitOps, rotated stale Argo repo credentials, configured runtime secrets, and proved Argo sync/private image pull/Sure account validation/dedupe DB open/daemon polling startup. Remaining Phase 8 work is rollback proof and MS-01 restart recovery.
+- [x] 08-01-PLAN.md — selected `/home/tonny/fintrack`, built and pushed the real image, registered `apps/fintrack` in GitOps, rotated stale Argo repo credentials, configured runtime secrets, and proved Argo sync/private image pull/Sure account validation/dedupe DB open/daemon polling startup. Bad-image rollout and git-revert recovery are proven. Remaining Phase 8 work is the operator-timed MS-01 restart recovery.
 
 ## Progress
 

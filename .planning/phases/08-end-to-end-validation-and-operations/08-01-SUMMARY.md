@@ -20,6 +20,8 @@ metrics:
 |--------|-------|-------------|
 | `473fb41` | gitops-homelab | Registered `apps/fintrack` as an outbound-only daemon Deployment with PVC, GHCR pull secret, and runtime secret. |
 | `3e74e46` | gitops-homelab | Replaced the encrypted runtime Secret with real fintrack configuration. |
+| `66e7c2f` | gitops-homelab | Simulated a failed rollout with a missing image tag. |
+| `6c98800` | gitops-homelab | Reverted the failed rollout and restored the healthy image. |
 
 ## What Changed
 
@@ -39,15 +41,19 @@ metrics:
 - Kubernetes pulled the private GHCR image.
 - After runtime config was added, Kubernetes rolled out a `1/1 Running` pod.
 - Startup logs show allowlist load, Sure account validation, dedupe DB open, alert sender configuration, and polling startup.
+- Bad-image rollout produced visible `ErrImagePull` / `ImagePullBackOff` while
+  the prior healthy pod stayed running.
+- Git revert restored Argo `Synced Healthy` and scaled the bad ReplicaSet to zero.
 
 ## Deviations
 
 - Fintrack is not a web application. No Service, Ingress, valid-TLS URL, public
   routing, Postgres, or Zitadel integration was added.
-- Full Phase 8 recovery exercises remain outside this deployment slice.
+- MS-01 restart recovery remains outside this safe deployment slice because it
+  reboots the physical host and needs operator timing.
 
 ## Self-Check: PASSED
 
-The fintrack daemon is deployed end to end and healthy through GitOps. Phase 8
-still has broader rollback and restart recovery work before the milestone can be
-closed.
+The fintrack daemon is deployed end to end and healthy through GitOps, and
+GitOps rollback recovery is proven. Phase 8 still needs the MS-01 restart
+recovery exercise before the milestone can be closed.

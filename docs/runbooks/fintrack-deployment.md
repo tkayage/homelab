@@ -13,6 +13,8 @@ Service, Ingress, public exposure annotation, or inbound health listener.
 - Image digest: `sha256:77f436a929c9695156610fd1a116e067571ae2a537782d5fe61dbbd90473d6c5`
 - GitOps commit: `473fb41 deploy(fintrack): register daemon app`
 - Runtime secret commit: `3e74e46 deploy(fintrack): configure runtime secret`
+- Rollback proof bad commit: `66e7c2f test(fintrack): simulate bad image rollout`
+- Rollback proof recovery commit: `6c98800 Revert "test(fintrack): simulate bad image rollout"`
 
 The workload has:
 
@@ -84,6 +86,11 @@ KUBECONFIG=.local/kubeconfig-k3s-01 kubectl -n argocd get application fintrack
 Argo CD automated sync applies the reverted state. Because the ApplicationSet uses
 `preserveResourcesOnDeletion`, deleting the app directory should not be used as a
 data cleanup shortcut; decide separately whether to retain or remove the PVC.
+
+The live rollback proof used a missing image tag. Argo reported the bad revision
+as `Synced Progressing`, Kubernetes created a new pod with `ErrImagePull` /
+`ImagePullBackOff`, and the previous healthy pod stayed running. Reverting the
+bad commit returned Argo to `Synced Healthy`.
 
 ## Recovery
 

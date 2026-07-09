@@ -1,7 +1,13 @@
 ---
 phase: 08-end-to-end-validation-and-operations
-status: blocked
+status: human_needed
 date: 2026-07-09
+score: 4/5
+human_verification:
+  - id: E2E-04-MS01-RESTART
+    requirement: E2E-04
+    reason: "MS-01 host restart is intentionally disruptive and requires operator approval/timing."
+    expected: "After MS-01 restart, Proxmox guests return in dependency order and fintrack/Argo/shared services recover without manual app rewiring."
 ---
 
 # Phase 8 Verification
@@ -9,8 +15,9 @@ date: 2026-07-09
 ## Result
 
 Fintrack deployment is live and healthy for the selected outbound-only daemon.
-Phase 8 remains open for the broader recovery exercises: full GitOps rollback
-proof and MS-01 restart recovery have not been executed.
+GitOps failed-rollout visibility and git-revert recovery are proven. Phase 8
+needs human-timed verification for the MS-01 restart recovery exercise because
+that action intentionally disrupts the host.
 
 ## Evidence
 
@@ -27,6 +34,8 @@ proof and MS-01 restart recovery have not been executed.
 
 - GitOps commit: `473fb41 deploy(fintrack): register daemon app`
 - Runtime secret commit: `3e74e46 deploy(fintrack): configure runtime secret`
+- Bad rollout proof commit: `66e7c2f test(fintrack): simulate bad image rollout`
+- Recovery commit: `6c98800 Revert "test(fintrack): simulate bad image rollout"`
 - App path: `.local/gitops-homelab/apps/fintrack`
 - CMP simulation passed: decrypt `*.enc.yaml` to `*.yaml`, then `kustomize build`.
 - Static exposure scan passed: no `Service`, `Ingress`, public marker, or
@@ -35,6 +44,8 @@ proof and MS-01 restart recovery have not been executed.
   credential produced `authentication required`.
 - Argo discovered `Application/fintrack`.
 - Argo status after runtime secret sync: `Synced Progressing`.
+- Argo status after rollback recovery: `Synced Healthy` at revision
+  `6c988009155ce314981e7f11bc7aa431edd4d722`.
 
 ### Cluster
 
@@ -54,6 +65,24 @@ proof and MS-01 restart recovery have not been executed.
   - `dedupe store opened at /data/dedupe.db; alerter configured ... Token:[REDACTED]`
   - `fintrack daemon started; polling every 5s`
 
+### Rollback Proof
+
+- Baseline: `Application/fintrack` was `Synced Healthy`, Deployment `1/1`, pod
+  `1/1 Running`.
+- Committed and pushed `66e7c2f test(fintrack): simulate bad image rollout`,
+  changing the image to `ghcr.io/tkayage/fintrack:rollback-proof-missing`.
+- Argo reconciled the bad commit and reported `Synced Progressing`.
+- Kubernetes created `ReplicaSet/fintrack-5587c696d5` and pod
+  `fintrack-5587c696d5-69p6t`, which failed with `ErrImagePull` /
+  `ImagePullBackOff` because the tag does not exist.
+- The previous healthy pod `fintrack-55d98b7969-fx4hs` stayed `1/1 Running`
+  during the failed rollout.
+- Reverted the bad commit with `6c98800`.
+- Argo reconciled the revert and returned to `Synced Healthy`.
+- Deployment returned to image
+  `ghcr.io/tkayage/fintrack:5461131698d6-20260709090701`; the bad ReplicaSet
+  scaled to zero and the healthy ReplicaSet remained ready.
+
 ## Requirement Status
 
 - E2E-01: Satisfied for the selected daemon. GitOps deployment, private image
@@ -62,16 +91,16 @@ proof and MS-01 restart recovery have not been executed.
 - E2E-02: Not applicable to this selected service. Fintrack does not use
   Postgres or Zitadel. This selected-app mismatch is documented instead of
   adding fake dependencies.
-- E2E-03: Partially satisfied. The initial failed deployment was visible through
-  Argo and Kubernetes. Full rollback exercise remains open.
-- E2E-04: Not executed. MS-01 restart recovery remains open.
+- E2E-03: VERIFIED. A bad image deployment was visible through Argo and
+  Kubernetes, and `git revert` restored `Synced Healthy` state.
+- E2E-04: HUMAN NEEDED. MS-01 restart recovery remains open because rebooting
+  the physical host is disruptive and should be operator-timed.
 - E2E-05: Partially satisfied. Fintrack deployment runbook exists at
   `docs/runbooks/fintrack-deployment.md`; broader platform recovery runbook
   remains open.
 
 ## Remaining Phase Work
 
-- Prove a bad GitOps deployment is recovered through git revert.
 - Execute or explicitly defer the MS-01 restart recovery exercise.
 - Broaden the runbook beyond fintrack-specific deployment if Phase 8 is expected
   to close the full milestone operations requirement.

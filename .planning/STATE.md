@@ -5,8 +5,8 @@ milestone_name: End-to-End Homelab Deployment
 current_phase: 08
 current_phase_name: end-to-end-validation-and-operations
 status: in_progress
-stopped_at: Phase 8 fintrack daemon deployed and healthy; rollback and MS-01 recovery exercises remain
-last_updated: "2026-07-09T14:17:30Z"
+stopped_at: Phase 8 fintrack daemon deployed and healthy; rollback proof passed; MS-01 restart recovery requires operator timing
+last_updated: "2026-07-09T14:22:30Z"
 progress:
   total_phases: 8
   completed_phases: 7
@@ -21,7 +21,8 @@ progress:
 
 Phase: 08 (end-to-end-validation-and-operations) — IN PROGRESS
 Status: Fintrack is registered, synced through GitOps, and running healthy.
-Rollback and MS-01 recovery exercises remain before closing the full phase.
+GitOps failed-rollout and git-revert recovery are proven. MS-01 recovery remains
+before closing the full phase.
 
 Phase 8 (End-to-End Validation and Operations): selected `/home/tonny/fintrack`
 as the real application. Built and pushed
@@ -33,7 +34,9 @@ committed runtime configuration as `3e74e46 deploy(fintrack): configure runtime
 secret`. Kubernetes created the PVC/secrets, pulled the private GHCR image, and
 rolled out a `1/1 Running` pod. Logs prove allowlist loading, Sure account
 validation, dedupe DB open, alert sender configuration, and daemon polling
-startup.
+startup. A bad-image GitOps commit `66e7c2f` produced visible
+ErrImagePull/ImagePullBackOff while the previous healthy pod stayed running; git
+revert commit `6c98800` restored Argo `Synced Healthy`.
 
 Phase 7 (Opt-in Public Exposure): default-deny public exposure is implemented.
 Generated apps are LAN-only unless `--public` is set; public DNS metadata is
@@ -57,8 +60,8 @@ Note: kubectl works via KUBECONFIG=.local/kubeconfig-k3s-01 (there is no ~/.kube
 
 ## Deferred Verification
 
-Phase 8 still needs rollback proof and the MS-01 restart recovery exercise before
-the milestone can be closed.
+Phase 8 still needs the MS-01 restart recovery exercise before the milestone can
+be closed. This requires operator timing because it reboots the physical host.
 
 ## Session Continuity
 
