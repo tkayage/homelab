@@ -55,10 +55,12 @@
 
 ### Public Exposure
 
-- [ ] **PUBLIC-01**: Applications remain LAN-only unless explicitly marked public.
-- [ ] **PUBLIC-02**: Public opt-in creates the required Cloudflare DNS record.
-- [ ] **PUBLIC-03**: Public traffic traverses the AWS Mikrotik path to NPM and the k3s ingress.
-- [ ] **PUBLIC-04**: Public exposure defaults to deny and does not expose administrative interfaces.
+- [x] **PUBLIC-01**: Applications remain LAN-only unless explicitly marked public.
+- [x] **PUBLIC-02**: Public opt-in creates the required Cloudflare DNS record.
+- [x] **PUBLIC-03**: Public traffic traverses the AWS Mikrotik path to NPM and the k3s ingress.
+- [x] **PUBLIC-04**: Public exposure defaults to deny and does not expose administrative interfaces.
+
+> 2026-07-09 (Phase 7 public exposure): Public exposure is now default-deny with explicit `--public` manifest metadata. Public DNS is per-host only, not wildcard. `scripts/public-edge.sh` provides preflight/default-deny/status/enable/disable/reachability/admin-scan commands. Verified with `go test -C scaffold ./...`, `bash scripts/scaffold-verify.sh all`, `bash tests/test-public-edge.sh static`, `bash scripts/public-edge.sh preflight`, `bash scripts/public-edge.sh assert-default-deny edge-smoke`, and `bash scripts/public-edge.sh scan-admin`. Full public enable/reach/disable is deferred to Phase 8's real validation app.
 
 ### End-to-End Validation
 
@@ -129,10 +131,10 @@
 | SCAF-04 | Phase 6 | Complete |
 | SCAF-05 | Phase 6 | Complete |
 | SCAF-06 | Phase 6 | Complete |
-| PUBLIC-01 | Phase 7 | Pending |
-| PUBLIC-02 | Phase 7 | Pending |
-| PUBLIC-03 | Phase 7 | Pending |
-| PUBLIC-04 | Phase 7 | Pending |
+| PUBLIC-01 | Phase 7 | Complete |
+| PUBLIC-02 | Phase 7 | Complete |
+| PUBLIC-03 | Phase 7 | Complete |
+| PUBLIC-04 | Phase 7 | Complete |
 | E2E-01 | Phase 8 | Pending |
 | E2E-02 | Phase 8 | Pending |
 | E2E-03 | Phase 8 | Pending |
@@ -147,4 +149,4 @@
 
 ---
 *Requirements defined: 2026-07-07*
-*Last updated: 2026-07-09 after Phase 6 scaffolder gap closure*
+*Last updated: 2026-07-09 after Phase 7 public exposure*

@@ -12,7 +12,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 - [x] **Phase 4: Local DNS, Proxy, and TLS** - Deliver automatic valid-TLS LAN exposure through Mikrotik, NPM, and Traefik. (completed 2026-07-07)
 - [x] **Phase 5: Shared Stateful Services** - Provision and integrate native Postgres, Valkey, NATS, Debezium, and existing Zitadel services. (completed 2026-07-09)
 - [x] **Phase 6: Build Pipeline and Project Scaffolding** - Turn one command and a git push into a deployed private image. (completed 2026-07-09)
-- [ ] **Phase 7: Opt-in Public Exposure** - Add explicit, default-deny public routing through Cloudflare and the AWS Mikrotik.
+- [x] **Phase 7: Opt-in Public Exposure** - Add explicit, default-deny public routing through Cloudflare and the AWS Mikrotik. (completed 2026-07-09)
 - [ ] **Phase 8: End-to-End Validation and Operations** - Prove the platform with a real app, recovery exercises, and an operator runbook.
 
 ## Phase Details
@@ -209,6 +209,10 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   4. An external scan confirms that Proxmox, Argo CD, NPM administration, Traefik dashboards, and other management surfaces are not exposed.
 
 **Plans**: TBD
+
+**Wave 1**
+
+- [x] 07-01-PLAN.md — default-deny generated manifests, explicit public opt-in metadata, public-edge contract, and admin-surface scan verification
 
 ### Phase 8: End-to-End Validation and Operations
 

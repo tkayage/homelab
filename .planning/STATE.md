@@ -2,25 +2,31 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: End-to-End Homelab Deployment
-current_phase: 07
-current_phase_name: opt-in-public-exposure
+current_phase: 08
+current_phase_name: end-to-end-validation-and-operations
 status: complete
-stopped_at: Phase 6 scaffolder gap closure complete; ready for Phase 7
-last_updated: "2026-07-09T08:28:46Z"
+stopped_at: Phase 7 public exposure complete; ready for Phase 8
+last_updated: "2026-07-09T08:42:19Z"
 progress:
   total_phases: 8
-  completed_phases: 6
-  total_plans: 28
-  completed_plans: 28
-  percent: 75
+  completed_phases: 7
+  total_plans: 29
+  completed_plans: 29
+  percent: 88
 ---
 
 # Project State
 
 ## Current Position
 
-Phase: 07 (opt-in-public-exposure) — READY
-Status: Phase 6 scaffolder gap closure complete; Phase 7 is the next milestone step.
+Phase: 08 (end-to-end-validation-and-operations) — READY
+Status: Phase 7 public exposure complete; Phase 8 is the next milestone step.
+
+Phase 7 (Opt-in Public Exposure): default-deny public exposure is implemented.
+Generated apps are LAN-only unless `--public` is set; public DNS metadata is
+per-host only; `scripts/public-edge.sh` verified Cloudflare preflight,
+default-deny for `edge-smoke.app.kayage.co`, and admin-surface non-exposure.
+Full public enable/reach/disable is deferred to the Phase 8 validation app.
 
 Phase 6 (Build Pipeline and Project Scaffolding): 06-09 closed the three
 verification blockers. Non-dry-run publish now requires a GHCR pull token from
