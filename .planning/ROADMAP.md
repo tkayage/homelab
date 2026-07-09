@@ -227,7 +227,11 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
   4. The complete platform returns to service after an MS-01 restart with correct dependency ordering.
   5. A tested runbook covers bootstrap, app onboarding, diagnosis, rollback, backup, restore, and cluster replacement.
 
-**Plans**: TBD
+**Plans**: 1 plan, blocked
+
+**Wave 1**
+
+- [x] 08-01-PLAN.md — selected `/home/tonny/fintrack`, built and pushed the real image, registered `apps/fintrack` in GitOps, rotated stale Argo repo credentials, and proved Argo sync/private image pull/process start. Blocked on missing real fintrack runtime values; pod fails fast with `missing required env var: CLOUDFLARE_API_TOKEN`.
 
 ## Progress
 
@@ -240,4 +244,4 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 | 5. Shared Stateful Services | 7/7 | Complete | 2026-07-09 |
 | 6. Build Pipeline and Project Scaffolding | 8/8 | Complete   | 2026-07-08 |
 | 7. Opt-in Public Exposure | 0/TBD | Not started | - |
-| 8. End-to-End Validation and Operations | 0/TBD | Not started | - |
+| 8. End-to-End Validation and Operations | 1/1 | Blocked | - |
