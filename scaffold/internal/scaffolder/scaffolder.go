@@ -79,6 +79,9 @@ type Options struct {
 	GitopsWorktree string
 	// GitHubEnv overrides the github.env credential file (test seam).
 	GitHubEnv string
+	// PullTokenFile points at a file containing the real classic read:packages
+	// GHCR pull token. This is the operator-safe non-argv credential path.
+	PullTokenFile string
 	// AgeRecipient / AgeKeyFile override the SOPS encrypt identity (test seam).
 	AgeRecipient string
 	AgeKeyFile   string
@@ -87,8 +90,9 @@ type Options struct {
 	SkipPreflight bool
 
 	// PullUsername / PullPassword are the private-GHCR read:packages credential
-	// baked into the dockerconfigjson pull secret. In tests they are dummy values;
-	// the real classic read:packages token is operator-provided in 06-08.
+	// baked into the dockerconfigjson pull secret. PullPassword is retained only
+	// as a hidden offline test seam; real tokens should come from PullTokenFile or
+	// GHCR_PULL_TOKEN so they never appear in argv/process listings.
 	PullUsername string
 	PullPassword string
 }
@@ -140,6 +144,11 @@ func Run(opts Options) (report.Result, error) {
 	if ghcrOrg == "" {
 		ghcrOrg = defaultGHCROrg
 	}
+	pullPassword, err := resolvePullPassword(opts)
+	if err != nil {
+		return res, err
+	}
+	opts.PullPassword = pullPassword
 
 	warnings := append([]string(nil), det.Warnings...)
 
@@ -325,6 +334,38 @@ func publishGitops(opts Options, appSlug, ghcrOrg string, port int, isT3 bool) (
 		return "", nil
 	}
 	return strings.TrimSpace(commit), nil
+}
+
+func resolvePullPassword(opts Options) (string, error) {
+	if opts.DryRun {
+		return "", nil
+	}
+	if opts.PullTokenFile != "" {
+		raw, err := os.ReadFile(opts.PullTokenFile)
+		if err != nil {
+			return "", fmt.Errorf("scaffold: read --pull-token-file: %w", err)
+		}
+		token := strings.TrimSpace(string(raw))
+		if token == "" {
+			return "", fmt.Errorf("scaffold: --pull-token-file is empty; provide a GHCR read:packages token")
+		}
+		return token, nil
+	}
+	if token := strings.TrimSpace(os.Getenv("GHCR_PULL_TOKEN")); token != "" {
+		return token, nil
+	}
+	if opts.PullPassword != "" {
+		if !isDummyPullPassword(opts.PullPassword) {
+			return "", fmt.Errorf("scaffold: --pull-password is an offline dummy-token seam; provide real GHCR credentials via --pull-token-file or GHCR_PULL_TOKEN")
+		}
+		return opts.PullPassword, nil
+	}
+	return "", fmt.Errorf("scaffold: missing GHCR pull token; provide a classic read:packages token via --pull-token-file or GHCR_PULL_TOKEN")
+}
+
+func isDummyPullPassword(token string) bool {
+	token = strings.ToLower(strings.TrimSpace(token))
+	return strings.Contains(token, "dummy") || strings.Contains(token, "throwaway") || strings.Contains(token, "test")
 }
 
 // preflight asserts every required external tool resolves on PATH, returning an

@@ -43,6 +43,8 @@ type scaffoldOptions struct {
 	dryRun bool
 	// gitopsRemote overrides the gitops-homelab clone URL (empty = the real repo).
 	gitopsRemote string
+	// pullTokenFile is the operator-safe path to the GHCR read:packages token.
+	pullTokenFile string
 
 	// --- Offline integration seams (hidden) ---
 	// These expose the scaffolder.Options test/integration seams so the offline
@@ -73,13 +75,14 @@ func newScaffoldCmd(opts *scaffoldOptions) *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			res, err := scaffolder.Run(scaffolder.Options{
-				Slug:         opts.slug,
-				Port:         opts.port,
-				Dockerfile:   opts.dockerfile,
-				Router:       opts.router,
-				GHCROrg:      opts.ghcrOrg,
-				DryRun:       opts.dryRun,
-				GitopsRemote: opts.gitopsRemote,
+				Slug:          opts.slug,
+				Port:          opts.port,
+				Dockerfile:    opts.dockerfile,
+				Router:        opts.router,
+				GHCROrg:       opts.ghcrOrg,
+				DryRun:        opts.dryRun,
+				GitopsRemote:  opts.gitopsRemote,
+				PullTokenFile: opts.pullTokenFile,
 
 				GitopsWorktree: opts.gitopsWorktree,
 				GitHubEnv:      opts.githubEnv,
@@ -105,6 +108,7 @@ func newScaffoldCmd(opts *scaffoldOptions) *cobra.Command {
 	f.StringVar(&opts.ghcrOrg, "ghcr-org", "tkayage", "GHCR org for the image ghcr.io/<org>/<slug> (CI + manifests)")
 	f.BoolVar(&opts.dryRun, "dry-run", false, "render app-repo files but skip the gitops publish/commit/push")
 	f.StringVar(&opts.gitopsRemote, "gitops-remote", "", "override the gitops-homelab clone URL (empty = the real repo)")
+	f.StringVar(&opts.pullTokenFile, "pull-token-file", "", "file containing the GHCR read:packages token (or set GHCR_PULL_TOKEN)")
 
 	// Offline integration seams — hidden; used only by scripts/scaffold-verify.sh
 	// to run a full publish offline against a local bare repo with a throwaway

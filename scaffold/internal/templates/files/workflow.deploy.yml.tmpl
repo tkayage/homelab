@@ -81,7 +81,15 @@ jobs:
           git commit -m "deploy({{.Slug}}): sha-${{"{{ needs.build.outputs.short_sha }}"}}" || exit 0
           # Two-writer contention: each app edits only its own apps/<slug>/, but
           # concurrent bumps still race the push — rebase-retry a few times (Pitfall 6).
+          pushed=0
           for i in 1 2 3; do
-            git pull --rebase origin main && git push origin main && break
+            if git pull --rebase origin main && git push origin main; then
+              pushed=1
+              break
+            fi
             sleep $((RANDOM % 5 + 2))
           done
+          if [ "$pushed" -ne 1 ]; then
+            echo "::error::gitops push failed after 3 retries" >&2
+            exit 1
+          fi

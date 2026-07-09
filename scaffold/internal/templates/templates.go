@@ -59,16 +59,19 @@ func render(name string, content []byte, data any) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// RenderToFile renders name against data and writes the result to destPath with
-// mode 0644. These are non-secret files (Dockerfile, workflow, k8s manifests);
-// the SOPS-encrypted pull secret is generated and encrypted separately in plan
-// 06-05, so 0600 is unnecessary here.
 func RenderToFile(name string, data any, destPath string) error {
+	return RenderToFileMode(name, data, destPath, 0o644)
+}
+
+// RenderToFileMode renders name against data and writes the result to destPath
+// with the provided permissions. Most generated files are public manifests and
+// use RenderToFile's 0644 default; transient plaintext secrets pass 0600 here.
+func RenderToFileMode(name string, data any, destPath string, mode os.FileMode) error {
 	out, err := Render(name, data)
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(destPath, out, 0o644); err != nil {
+	if err := os.WriteFile(destPath, out, mode); err != nil {
 		return fmt.Errorf("write %q: %w", destPath, err)
 	}
 	return nil

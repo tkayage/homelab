@@ -151,6 +151,17 @@ func TestWorkflowStructuralInvariants(t *testing.T) {
 	if !strings.Contains(s, "git pull --rebase origin main") {
 		t.Error("bump job push is missing the rebase-retry loop (Pitfall 6)")
 	}
+	for _, must := range []string{
+		"pushed=0",
+		"pushed=1",
+		`if [ "$pushed" -ne 1 ]; then`,
+		"::error::gitops push failed after 3 retries",
+		"exit 1",
+	} {
+		if !strings.Contains(s, must) {
+			t.Errorf("bump job retry loop missing exhausted-retry failure invariant %q", must)
+		}
+	}
 
 	// Every third-party action is pinned to a full 40-hex commit SHA, never a
 	// floating @vN tag (T-06-03).

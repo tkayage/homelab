@@ -136,9 +136,14 @@ func Publish(cfg Config, slug string, data manifests.Data) error {
 	if err := os.MkdirAll(appDir, 0o755); err != nil {
 		return fmt.Errorf("publish: create app dir %s: %w", appDir, err)
 	}
+	plainSecret := filepath.Join(appDir, "pull-secret.yaml")
+	_ = os.Remove(plainSecret)
 	if err := manifests.Render(appDir, data); err != nil {
 		return fmt.Errorf("publish: render manifests: %w", err)
 	}
+	defer func() {
+		_ = os.Remove(plainSecret)
+	}()
 
 	// T-06-06: encrypt the rendered plaintext pull secret and hard-assert no
 	// plaintext survives before staging.

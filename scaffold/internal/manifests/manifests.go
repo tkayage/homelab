@@ -22,6 +22,7 @@ package manifests
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/tkayage/homelab/scaffold/internal/templates"
@@ -57,12 +58,16 @@ type Data struct {
 // pull-secret.enc.yaml (the CMP reverses that at build time). Rendering the
 // plaintext name here is what makes `kustomize build` succeed offline in the
 // test (it simulates the CMP's post-decrypt state).
-var renderFiles = []struct{ tmpl, out string }{
-	{"gitops/deployment.yaml.tmpl", "deployment.yaml"},
-	{"gitops/service.yaml.tmpl", "service.yaml"},
-	{"gitops/ingress.yaml.tmpl", "ingress.yaml"},
-	{"gitops/kustomization.yaml.tmpl", "kustomization.yaml"},
-	{"gitops/pull-secret.yaml.tmpl", "pull-secret.yaml"},
+var renderFiles = []struct {
+	tmpl string
+	out  string
+	mode os.FileMode
+}{
+	{"gitops/deployment.yaml.tmpl", "deployment.yaml", 0o644},
+	{"gitops/service.yaml.tmpl", "service.yaml", 0o644},
+	{"gitops/ingress.yaml.tmpl", "ingress.yaml", 0o644},
+	{"gitops/kustomization.yaml.tmpl", "kustomization.yaml", 0o644},
+	{"gitops/pull-secret.yaml.tmpl", "pull-secret.yaml", 0o600},
 }
 
 // Render renders every gitops manifest template against data and writes the
@@ -71,7 +76,7 @@ var renderFiles = []struct{ tmpl, out string }{
 func Render(dir string, data Data) error {
 	for _, f := range renderFiles {
 		dest := filepath.Join(dir, f.out)
-		if err := templates.RenderToFile(f.tmpl, data, dest); err != nil {
+		if err := templates.RenderToFileMode(f.tmpl, data, dest, f.mode); err != nil {
 			return fmt.Errorf("render %s: %w", f.out, err)
 		}
 	}
