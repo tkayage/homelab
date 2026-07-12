@@ -98,3 +98,20 @@ After cluster replacement, bootstrap Argo CD, SOPS age key, and the GitOps
 repository credential first. The ApplicationSet will rediscover `apps/fintrack`.
 The daemon state is only as durable as the `fintrack-data` PVC backing store on
 the k3s node; off-node backup of `/data/dedupe.db` is not yet automated.
+
+## Deferred MS-01 Restart Exercise
+
+The v1.0 Phase 8 closure did not reboot the physical MS-01 host. That exercise
+is intentionally disruptive and should run only during an operator-approved
+maintenance window.
+
+When scheduled:
+
+1. Record pre-restart state for Proxmox guests, Argo CD, fintrack, shared
+   services, NPM, and router reachability.
+2. Restart the MS-01 host.
+3. Confirm VM/LXC startup ordering brings shared services up before k3s app
+   workloads depend on them.
+4. Confirm Argo CD returns to `Synced` / `Healthy` and fintrack returns to
+   `1/1 Running` without manifest changes.
+5. Capture any manual recovery action as future automation work.

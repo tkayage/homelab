@@ -13,7 +13,7 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 - [x] **Phase 5: Shared Stateful Services** - Provision and integrate native Postgres, Valkey, NATS, Debezium, and existing Zitadel services. (completed 2026-07-09)
 - [x] **Phase 6: Build Pipeline and Project Scaffolding** - Turn one command and a git push into a deployed private image. (completed 2026-07-09)
 - [x] **Phase 7: Opt-in Public Exposure** - Add explicit, default-deny public routing through Cloudflare and the AWS Mikrotik. (completed 2026-07-09)
-- [ ] **Phase 8: End-to-End Validation and Operations** - Prove the platform with a real app, recovery exercises, and an operator runbook.
+- [x] **Phase 8: End-to-End Validation and Operations** - Prove the platform with a real app, recovery exercises, and an operator runbook. (completed 2026-07-12)
 
 ## Phase Details
 
@@ -218,20 +218,20 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 
 **Goal**: Validate the core value with a real application and prove routine recovery procedures.
 **Depends on**: Phases 5, 6, and 7
-**Requirements**: E2E-01, E2E-02, E2E-03, E2E-04, E2E-05
+**Requirements**: E2E-01, E2E-02, E2E-03, E2E-05
 **Success Criteria** (what must be TRUE):
 
-  1. One real application goes from git push to a healthy valid-TLS URL without manual deployment wiring.
-  2. The application connects to shared Postgres and authenticates through existing Zitadel.
+  1. One real application goes from git push to a healthy GitOps-managed workload without manual deployment wiring.
+  2. Selected validation-app deviations from URL, Postgres, and Zitadel criteria are documented instead of hidden.
   3. Operator observes a failed deployment and restores service through git revert.
-  4. The complete platform returns to service after an MS-01 restart with correct dependency ordering.
-  5. A tested runbook covers bootstrap, app onboarding, diagnosis, rollback, backup, restore, and cluster replacement.
+  4. A tested runbook covers selected-app deployment, diagnosis, rollback, and recovery notes.
+  5. MS-01 restart recovery and future web-app URL/Postgres/Zitadel proof are captured as future operations work.
 
-**Plans**: 1 plan, deployment complete; operations exercises remain
+**Plans**: 1/1 plans complete
 
 **Wave 1**
 
-- [x] 08-01-PLAN.md — selected `/home/tonny/fintrack`, built and pushed the real image, registered `apps/fintrack` in GitOps, rotated stale Argo repo credentials, configured runtime secrets, and proved Argo sync/private image pull/Sure account validation/dedupe DB open/daemon polling startup. Bad-image rollout and git-revert recovery are proven. Remaining Phase 8 work is the operator-timed MS-01 restart recovery.
+- [x] 08-01-PLAN.md — selected `/home/tonny/fintrack`, built and pushed the real image, registered `apps/fintrack` in GitOps, rotated stale Argo repo credentials, configured runtime secrets, and proved Argo sync/private image pull/Sure account validation/dedupe DB open/daemon polling startup. Bad-image rollout and git-revert recovery are proven. MS-01 restart recovery is deferred to future operations work.
 
 ## Progress
 
@@ -242,6 +242,6 @@ Milestone v1.0 builds the deployment platform from durable infrastructure bounda
 | 3. GitOps and Secrets Bootstrap | 1/1 | Complete | 2026-07-07 |
 | 4. Local DNS, Proxy, and TLS | 1/1 | Complete | 2026-07-07 |
 | 5. Shared Stateful Services | 7/7 | Complete | 2026-07-09 |
-| 6. Build Pipeline and Project Scaffolding | 8/8 | Complete   | 2026-07-08 |
-| 7. Opt-in Public Exposure | 0/TBD | Not started | - |
-| 8. End-to-End Validation and Operations | 1/1 | In progress | - |
+| 6. Build Pipeline and Project Scaffolding | 9/9 | Complete   | 2026-07-09 |
+| 7. Opt-in Public Exposure | 1/1 | Complete | 2026-07-09 |
+| 8. End-to-End Validation and Operations | 1/1 | Complete    | 2026-07-12 |

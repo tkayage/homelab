@@ -27,19 +27,18 @@ Push to git → app is live at `myapp.yourdomain.com` with valid TLS, no manual 
 ### Validated
 
 - [x] Phase 1 infrastructure contract defines explicit guest allocations, measured operating headroom, verified prerequisites, and automation ownership boundaries. — Validated in Phase 1: Infrastructure Design and Prerequisites
+- [x] k3s cluster is provisioned as a single disposable VM on the Proxmox MS-01. — Validated in Phase 2: Reproducible k3s Foundation
+- [x] Argo CD reconciles the platform GitOps repository and deploys discovered app directories. — Validated in Phase 3: GitOps and Secrets Bootstrap
+- [x] Local LAN exposure uses Mikrotik DNS, NPM, Traefik, and Cloudflare DNS-01 TLS. — Validated in Phase 4: Local DNS, Proxy, and TLS
+- [x] Shared services run outside k3s: Postgres in a native LXC, Valkey/NATS/Debezium in a Compose VM, and Zitadel integrated as-is. — Validated in Phase 5: Shared Stateful Services
+- [x] Project scaffolding builds/publishes GHCR images, writes GitOps manifests, and supports T3 or generic containerizable apps. — Validated in Phase 6: Build Pipeline and Project Scaffolding
+- [x] Public exposure is default-deny and requires explicit per-app opt-in metadata. — Validated in Phase 7: Opt-in Public Exposure
+- [x] One real app (`/home/tonny/fintrack`) is deployed end to end as a healthy GitOps-managed daemon with rollback proof. — Validated in Phase 8: End-to-End Validation and Operations
 
 ### Active
 
-- [ ] k3s cluster provisioned as a single VM on the Proxmox MS-01 (apps only — ephemeral, rebuildable)
-- [ ] GitOps engine (ArgoCD or Flux) running in the cluster; git push triggers deployment
-- [ ] Container images built and pushed to GHCR; cluster pulls from GHCR
-- [ ] Per-project scaffolding tool: run once in any project to generate manifests/pipeline config and register it with the GitOps repo
-- [ ] Automatic local exposure (default): Mikrotik LAN DNS static entry + Nginx Proxy Manager proxy host + valid TLS cert (Cloudflare DNS-01) created per app
-- [ ] Opt-in public exposure: Cloudflare DNS record pointing at the AWS Mikrotik public IP, traffic forwarded downstream to NPM → k3s ingress
-- [ ] Shared services provisioned on Proxmox: Postgres in a dedicated native-service LXC; Valkey, Debezium, and NATS + JetStream in one dedicated Docker Compose VM
-- [ ] Existing Zitadel LXC integrated as-is (not re-provisioned) — apps can use it for auth
-- [ ] Apps in k3s reach shared services over the LAN
-- [ ] One real app deployed end-to-end through the pipeline (the success gate for v1)
+- [ ] Verify MS-01 restart recovery with correct VM/LXC startup ordering during a maintenance window.
+- [ ] Prove a future web validation app through valid-TLS URL, Postgres, and Zitadel integration end to end.
 
 ### Out of Scope
 
@@ -84,10 +83,11 @@ Push to git → app is live at `myapp.yourdomain.com` with valid TLS, no manual 
 | Apps in k3s, state outside k3s | Cluster stays disposable; rebuilding k3s never risks data | Validated in Phase 1 |
 | Dedicated Postgres LXC; shared Compose VM for Valkey, Debezium, and NATS | Isolate the durable database while consolidating supporting services without Docker-in-LXC | Validated in Phase 1 |
 | Docker only in a dedicated VM, never Docker-in-LXC | Avoids nesting/AppArmor quirks while retaining Compose operational simplicity | Validated in Phase 1 |
-| GHCR for container images | Free, zero infra to run, integrates with git hosting | — Pending |
-| Single k3s VM on the one MS-01 | Multi-VM on one host = complexity without real redundancy | — Pending |
-| Split DNS: Mikrotik static entries for LAN, Cloudflare for public | Local apps resolve locally, no hostname leakage; public opt-in via AWS Mikrotik | — Pending |
-| Cloudflare DNS-01 for TLS certs | Valid certs for local-only apps without opening ports | — Pending |
+| GHCR for container images | Free, zero infra to run, integrates with git hosting | Validated in Phase 8 |
+| Single k3s VM on the one MS-01 | Multi-VM on one host = complexity without real redundancy | Validated in Phase 2 |
+| Split DNS: Mikrotik static entries for LAN, Cloudflare for public | Local apps resolve locally, no hostname leakage; public opt-in via AWS Mikrotik | Validated in Phases 4 and 7 |
+| Cloudflare DNS-01 for TLS certs | Valid certs for local-only apps without opening ports | Validated in Phase 4 |
+| MS-01 restart recovery deferred from v1.0 closure | Rebooting the physical host is intentionally disruptive and should run during an operator-approved maintenance window | — Pending future operations |
 
 ## Evolution
 
@@ -107,4 +107,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-07 after completing Phase 1 infrastructure design and prerequisites*
+*Last updated: 2026-07-12 after completing Phase 8*

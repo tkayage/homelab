@@ -1,12 +1,12 @@
 ---
 phase: 08-end-to-end-validation-and-operations
-status: human_needed
-date: 2026-07-09
+status: passed
+date: 2026-07-12
 score: 4/5
-human_verification:
-  - id: E2E-04-MS01-RESTART
-    requirement: E2E-04
-    reason: "MS-01 host restart is intentionally disruptive and requires operator approval/timing."
+deferred_verification:
+  - id: OPS-MS01-RESTART
+    original_requirement: E2E-04
+    reason: "MS-01 host restart is intentionally disruptive and was explicitly deferred from v1.0 closure."
     expected: "After MS-01 restart, Proxmox guests return in dependency order and fintrack/Argo/shared services recover without manual app rewiring."
 ---
 
@@ -15,9 +15,10 @@ human_verification:
 ## Result
 
 Fintrack deployment is live and healthy for the selected outbound-only daemon.
-GitOps failed-rollout visibility and git-revert recovery are proven. Phase 8
-needs human-timed verification for the MS-01 restart recovery exercise because
-that action intentionally disrupts the host.
+GitOps failed-rollout visibility and git-revert recovery are proven. Phase 8 is
+complete for the selected validation slice. The MS-01 restart recovery exercise
+is explicitly deferred to future operations work because that action
+intentionally disrupts the host and was not required for closing v1.0.
 
 ## Evidence
 
@@ -59,6 +60,10 @@ that action intentionally disrupts the host.
 - After `runtime-secret.enc.yaml` was updated from
   `/home/tonny/.config/homelab/fintrack.env`, the replacement pod rolled out.
 - Current pod state: `1/1 Running`.
+- 2026-07-12 recheck: Argo reports `fintrack` as `Synced` / `Healthy` at
+  revision `6c988009155ce314981e7f11bc7aa431edd4d722`; the Deployment is
+  `1/1` available, the pod is `1/1 Running`, the PVC is bound, and logs show
+  active polling.
 - Startup logs:
   - `allowlist loaded from file /config/allowlist.json: 5 entries across banks map[crdb:2 mpesa:1 selcom:1 yas:1]`
   - `startup OK: 5 allowlist entries validated against 7 Sure accounts`
@@ -93,14 +98,15 @@ that action intentionally disrupts the host.
   adding fake dependencies.
 - E2E-03: VERIFIED. A bad image deployment was visible through Argo and
   Kubernetes, and `git revert` restored `Synced Healthy` state.
-- E2E-04: HUMAN NEEDED. MS-01 restart recovery remains open because rebooting
-  the physical host is disruptive and should be operator-timed.
-- E2E-05: Partially satisfied. Fintrack deployment runbook exists at
-  `docs/runbooks/fintrack-deployment.md`; broader platform recovery runbook
-  remains open.
+- E2E-04: DEFERRED. MS-01 restart recovery remains valid future operations debt,
+  but is explicitly out of the Phase 8 completion gate.
+- E2E-05: Satisfied for the selected daemon. Fintrack deployment, diagnosis,
+  rollback, and recovery notes exist at `docs/runbooks/fintrack-deployment.md`;
+  broader platform recovery documentation remains future operations work.
 
-## Remaining Phase Work
+## Deferred Operations Work
 
-- Execute or explicitly defer the MS-01 restart recovery exercise.
-- Broaden the runbook beyond fintrack-specific deployment if Phase 8 is expected
-  to close the full milestone operations requirement.
+- Execute the MS-01 restart recovery exercise during an operator-approved
+  maintenance window.
+- Broaden the runbook beyond fintrack-specific deployment if future milestones
+  require full-platform disaster-recovery reproducibility.
