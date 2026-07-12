@@ -1,116 +1,115 @@
-# Project Research Summary
+# v1.1 Scaffolder CLI Service Research Summary
 
 **Project:** Homelab Deploy Platform
-**Domain:** GitOps-based homelab deployment platform
-**Researched:** 2026-07-07
-**Confidence:** MEDIUM
-
-## Executive Summary
-
-The platform should use a disposable single-node k3s VM for applications, keep durable services in dedicated Proxmox LXCs, and use Git as the deployment interface. The recommended control plane is OpenTofu plus the bpg/proxmox provider for infrastructure, Argo CD with an ApplicationSet for GitOps, GitHub Actions and GHCR for images, and SOPS with age for rebuild-safe secrets.
-
-The shortest path to zero-touch local exposure is wildcard-first: one Mikrotik LAN DNS rule, one Nginx Proxy Manager wildcard proxy host, and one wildcard certificate obtained through Cloudflare DNS-01. This must be validated early because NPM wildcard proxy behavior is the principal uncertainty; per-app API automation remains the fallback. Public exposure should remain explicit and additive through Cloudflare DNS plus the AWS Mikrotik path.
-
-The main risks are bootstrap circular dependencies, unsafe Argo CD pruning, secret loss during cluster rebuilds, double-proxy failures, under-sized LXCs, Debezium WAL growth, and accidentally exposing administrative surfaces. The roadmap should prove each infrastructure rail incrementally and keep the final success gate focused on one real application deployed from git push to valid-TLS URL.
+**Milestone:** v1.1 Scaffolder CLI Service
+**Domain:** Operator-facing Go CLI for GitOps-managed container service onboarding and updates
+**Researched:** 2026-07-12
+**Confidence:** MEDIUM-HIGH
 
 ## Key Findings
 
-### Recommended Stack
+v1.1 should extend the existing Go/Cobra scaffolder into a normal dev-server CLI binary rather than creating a new service, daemon, web UI, or imperative deployment tool. The CLI should remain file- and GitOps-oriented: inspect an app repository, generate or validate a Dockerfile, mutate the GitOps repository, encrypt runtime secrets with SOPS, validate rendered manifests, commit, and push. Argo CD remains responsible for reconciliation.
 
-**Core technologies:**
-- k3s with bundled Traefik: disposable application cluster and ingress
-- Argo CD with ApplicationSet: GitOps reconciliation and automatic app discovery
-- OpenTofu with bpg/proxmox: reproducible VM and LXC provisioning
-- GitHub Actions with GHCR: container build and registry pipeline
-- SOPS with age and KSOPS: secrets that survive cluster replacement
-- Nginx Proxy Manager with Cloudflare DNS-01: edge TLS termination
-- TypeScript scaffolding CLI and shared Helm app chart: consistent app onboarding
+The strongest shared recommendation is to split the scaffolder into explicit workflows: `init` for new service onboarding, `update` for existing GitOps services, `diff` or dry-run for preview, and `doctor` for local prerequisite checks. The bare command can remain an init-compatible alias for backward compatibility, but update behavior should require an explicit verb because it mutates existing desired state.
 
-### Expected Features
+**Recommended stack decisions:**
+- Keep Go and Cobra for the CLI; add install/version/doctor support around the existing module.
+- Keep shelling out to system `git` and `sops`; do not add `go-git`, SOPS internals, client-go, Helm SDK, Docker SDK, or a daemon.
+- Add `sigs.k8s.io/kustomize/kyaml` for Kubernetes-aware YAML edits that preserve existing service shape.
+- Optionally add `golang.org/x/term` only if interactive prompts are required; flag-driven flows should remain canonical.
+- Continue using GHCR, Argo CD ApplicationSet, k3s, Kustomize-style app directories, and SOPS+age as the deployment substrate.
 
-**Must have:**
-- Git push builds, publishes, and deploys an image
-- GitOps auto-sync, health visibility, self-heal, prune, and git-revert rollback
-- Valid TLS and hostname routing without per-app manual wiring
-- Safe secrets, private GHCR pulls, and application health probes
-- App connectivity to Postgres, Valkey, Debezium, NATS/JetStream, and Zitadel
-- Local-only exposure by default and explicit public opt-in
-- One-command scaffolding and one real end-to-end application
+**Must-have product behavior:**
+- Installable `scaffold` binary on the dev server, with `version` and `doctor`.
+- Dockerfile-first detection: explicit `--dockerfile`, then root `Dockerfile`, then an explicit missing-Dockerfile branch.
+- Existing Dockerfiles are read-only inputs; inspect for `EXPOSE`, non-root `USER`, and port hints, but never silently rewrite.
+- Missing Dockerfiles can be generated only with operator acceptance or explicit flags, and generated files become app-owned.
+- Existing services are discovered by slug under `apps/<slug>/` and updated in place without full directory re-render.
+- Non-secret env vars are added or updated idempotently through ConfigMap or existing Deployment env conventions.
+- Runtime secrets are merged into SOPS-encrypted Kubernetes Secret manifests with values redacted from all output.
+- Every mutating command supports preview/dry-run, local validation, scoped staging, a meaningful GitOps commit, and no empty commit on no-op reruns.
 
-**Defer until after v1 validation:**
-- Automated per-app database/user creation
-- Notifications, dashboard discovery, teardown automation, and Renovate
-- Automated Zitadel client provisioning, staging overlays, observability, and preview environments
-
-### Architecture Approach
-
-Use one GitOps platform repository for cluster add-ons, shared-service endpoints, a shared application chart, and per-app values. Argo CD watches that repository and discovers `apps/*`; individual app repositories contain source, Dockerfiles, and CI workflows that publish to GHCR and update their image tag in the platform repository. Argo CD owns Kubernetes resources only; OpenTofu and configuration automation own Proxmox, LXCs, routers, and NPM.
-
-### Critical Pitfalls
-
-1. **Bootstrap circular dependency** — keep a minimal, documented bootstrap path and test a full k3s rebuild.
-2. **Unsafe Argo CD prune/finalizers** — use conservative sync policies for platform resources and test deletion on leaf apps.
-3. **Secrets bound to the disposable cluster** — use SOPS+age and maintain an offline age-key backup.
-4. **Wildcard/double-proxy edge failures** — spike NPM wildcard routing and test websockets, uploads, and forwarded headers.
-5. **Stateful-service resource and recovery failures** — define RAM/disk limits, control Debezium WAL growth, and verify off-host Postgres restores.
-6. **Public exposure leaks** — default-deny the AWS CHR path and externally verify that administrative interfaces remain unreachable.
+**Critical pitfalls to design around:**
+- Do not re-render existing app directories; patch specific Kubernetes resources and preserve custom fields, PVCs, daemon-only services, annotations, and missing Service/Ingress cases.
+- Do not leak secret values through CLI args, logs, diffs, temp files, process lists, shell history, or plaintext files in the GitOps worktree.
+- Run SOPS from the GitOps repo root or with explicit config/recipient handling so `.sops.yaml` rules and recipients are correct.
+- Env/secret changes may not restart pods automatically; update a deterministic pod-template checksum/revision annotation when runtime config changes.
+- Validate env var names, warn on likely-secret keys passed as non-secret, and keep secret classification explicit.
+- Stage only known changed files under one service directory and reject dirty or ambiguous GitOps worktrees unless an explicit safe override exists.
 
 ## Implications for Roadmap
 
-### Phase 1: Infrastructure Foundation
-Provision the k3s VM and service LXCs with explicit resource budgets, network identity, and repeatable configuration.
+Suggested phase structure:
 
-### Phase 2: GitOps and Secrets Bootstrap
-Create the platform repository, install Argo CD and ApplicationSet, establish SOPS+age, and prove reconciliation with a test workload.
+1. **CLI Runtime and Preflight**
+   - **Rationale:** An installed binary can run from any directory, so it must first prove repo context, branch, credentials, SOPS, kustomize, and GitOps target before it can safely mutate files.
+   - **Delivers:** `scaffold` install path, `version`, `doctor`, explicit command skeleton, config for GitOps repo path, target summary, and shared preflight/reporting.
+   - **Avoids:** Ambiguous working directory, wrong branch/remote, partial state changes, and late SOPS/git failures.
+   - **Research flag:** Low. Standard Cobra/install/preflight patterns; implementation should inspect local repo conventions.
 
-### Phase 3: Local Exposure Spine
-Validate wildcard Mikrotik DNS, NPM wildcard routing, Cloudflare DNS-01 TLS, and Traefik forwarding; implement per-app fallback automation if the spike fails.
+2. **GitOps Worktree Primitives and Service Loader**
+   - **Rationale:** Update features depend on safe, reusable GitOps operations and read-only service discovery before any patching.
+   - **Delivers:** Extracted sync/stage/commit/push helpers, changed-file detection, `apps/<slug>/` resolver, kustomization/resource loader, managed-service metadata handling, and an inspect/diff foundation.
+   - **Avoids:** Wrong service selection, unrelated file commits, re-rendering existing services, and Argo CD prune/self-heal blast radius.
+   - **Research flag:** Medium. Needs careful validation against current fixtures and live-shaped services such as `fintrack`.
 
-### Phase 4: Shared Services
-Configure Postgres natively in a dedicated LXC and configure Valkey, NATS/JetStream, and Debezium in a dedicated Compose VM; integrate Zitadel and expose stable LAN service endpoints to k3s.
+3. **Dockerfile-First Init Flow**
+   - **Rationale:** Creation should be made container-contract-first before update flows grow, otherwise T3-first assumptions continue to leak into v1.1.
+   - **Delivers:** Dockerfile-first detection, `EXPOSE`/port reporting, non-root warning, missing-Dockerfile state, explicit generation flags/prompts, conservative templates, and preservation tests proving existing Dockerfiles are unchanged.
+   - **Avoids:** Silent Dockerfile overwrite, T3 lock-in, mismatched Kubernetes ports, and hidden app-owned build changes.
+   - **Research flag:** Low-Medium. Dockerfile semantics are documented; exact template profiles need local fixture validation.
 
-### Phase 5: Build Pipeline and Scaffolding
-Build the shared app chart and TypeScript scaffolder, generate CI/GHCR integration, and prove that a push deploys a private image automatically.
+4. **Non-Secret Runtime Config Updates**
+   - **Rationale:** This proves structural YAML patching, idempotency, dry-run diffing, validation, scoped staging, and commit flow without SOPS complexity.
+   - **Delivers:** `scaffold update <slug> --set KEY=value`, ConfigMap or existing env upsert, duplicate-key behavior, env-name validation, likely-secret warning, redacted/structured report, kustomize validation, and no-op second run.
+   - **Avoids:** YAML churn, invalid Kubernetes env names, credentials in ConfigMaps, stale pods due to missing rollout annotation, and noisy commits.
+   - **Research flag:** Medium. Phase planning should inspect existing manifest styles and decide the canonical ConfigMap/env convention.
 
-### Phase 6: Public Opt-in Exposure
-Configure the AWS CHR path and annotation/flag-driven Cloudflare records with default-deny verification.
+5. **Encrypted Runtime Secret Updates**
+   - **Rationale:** Secret handling has the highest security and operational risk and should build on a proven service loader, patcher, validator, and commit path.
+   - **Delivers:** `--secret`, `--secret-file`, and ideally stdin/hidden prompt inputs; decrypt-or-create runtime Secret; merge keys; re-encrypt to `runtime-secret.enc.yaml`; validate `.sops.yaml` rule/recipient/decryptability; plaintext guard; redacted key-level diff; rollout annotation; scoped GitOps commit.
+   - **Avoids:** Plaintext leaks, wrong SOPS recipients, corrupted ciphertext, `.enc.yaml` kustomization references, immutable Secret surprises, and secret values in commit metadata.
+   - **Research flag:** High. Use `$gsd-plan-phase --research-phase` here to validate exact SOPS CLI operations, temp-file discipline, and current Argo CMP expectations.
 
-### Phase 7: End-to-End Validation
-Deploy one real application using shared services and Zitadel, exercise rollback and restart behavior, and document the operational runbook.
+6. **Final UX, Dry-Run, Validation, and Reconciliation Checks**
+   - **Rationale:** Once mutation paths work, the milestone needs operator polish and end-to-end confidence, not new deployment mechanics.
+   - **Delivers:** Stable command names, dry-run/diff across init/update, JSON output, completion if useful, compact reports, commit SHA/rollback hints, render/object-set validation, and optional post-push Argo health/sync checks.
+   - **Avoids:** Hidden destructive changes, unreviewable commits, Argo CD delayed failures, and app config changes that appear synced but do not roll pods.
+   - **Research flag:** Medium. Reconciliation checks depend on current Argo naming, access, and sync policy.
 
-### Phase Ordering Rationale
+**Phase ordering rationale:** Build the safety rails first, then the GitOps mutation substrate, then Dockerfile-first create behavior, then progressively riskier update operations. Non-secret env updates should come before encrypted secret updates because they exercise discovery, YAML patching, validation, idempotency, and commit flow without exposing credentials. Secret updates deserve a dedicated phase with security tests.
 
-Infrastructure precedes GitOps; GitOps precedes exposure and app automation; shared services and public networking can progress after the control plane exists; scaffolding is implemented only after its target conventions work manually. The final phase validates the system as a whole rather than introducing new architecture.
+## Requirement Guidance
 
-### Research Flags
+Translate the research into requirements with these acceptance criteria:
 
-- Local exposure needs a short NPM wildcard-host compatibility spike.
-- GitOps bootstrap needs focused KSOPS and Argo CD self-management research.
-- Shared services need explicit Debezium WAL, JetStream storage, and Postgres recovery validation.
-- Public exposure needs current RouterOS/WireGuard and firewall-rule validation.
+- **CLI binary:** The operator can install and run `scaffold` from the dev server PATH; `scaffold doctor` verifies git, SOPS, age key/recipient, kustomize, GitOps repo path, branch, remote, credentials, app repo context when needed, and dirty worktrees before writes.
+- **Command model:** `init`, `update`, `diff` or dry-run, `doctor`, and `version` are explicit. Bare `scaffold` may remain an init alias only.
+- **Dockerfile-first detection:** Dockerfile presence is the primary containerization signal. Framework/T3 detection is only a template/profile hint. Existing Dockerfiles are preserved byte-for-byte.
+- **Dockerfile generation:** Generation is opt-in, previewable, and never overwrites an existing Dockerfile without a future explicit replace feature.
+- **Existing-service update:** Update mode mutates only requested fields under `apps/<slug>/`; it must preserve unrelated YAML fields, custom resources, PVCs, service-specific shapes, and absent Service/Ingress resources.
+- **Non-secret env vars:** Upserts are deterministic, validate Kubernetes env var names, produce no duplicate entries, warn on likely-sensitive names, and update rollout annotations when pod env changes.
+- **Encrypted secrets:** Secret inputs should prefer hidden prompt, stdin, or file over inline command values. Reports and diffs show key-level actions only. Plaintext files must never be staged or left in the GitOps worktree.
+- **SOPS correctness:** New or updated secret files use the GitOps repo `.sops.yaml` rule and expected age recipient; decryptability is verified before commit.
+- **Kustomization references:** Committed encrypted secret files must align with the existing Argo CMP/Kustomize convention, including referencing decrypted filenames where required.
+- **GitOps commit flow:** Mutations follow plan -> apply files -> validate -> stage allowlisted files -> commit -> push. A no-op second run exits cleanly with no commit.
+- **Validation:** Required checks include YAML parse, kustomize render, SOPS/decrypt simulation for secret changes, plaintext-secret scan, object-set comparison to catch accidental deletes, and optional Kubernetes dry-run when available.
+- **Reporting:** Success output includes service slug, GitOps path, changed files, env keys changed, secret key names changed without values, validation status, commit SHA, and rollback hint.
+- **Deferrals:** Defer `adopt`, web UI, PR workflow, Dockerfile lint/refactor systems, database provisioning, public exposure changes bundled with env updates, and replacement of SOPS with another secret backend.
 
-## Confidence Assessment
+## Sources/Inputs
 
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Stack | MEDIUM | Versions and primary projects were checked, but integrations require local validation |
-| Features | MEDIUM | Strong convergence across homelab GitOps and self-hosted PaaS patterns |
-| Architecture | MEDIUM | Boundaries are established; wildcard NPM behavior remains uncertain |
-| Pitfalls | MEDIUM | Supported by official documentation and multiple practitioner reports |
+Synthesized from:
 
-**Overall confidence:** MEDIUM
+- `.planning/research/STACK.md` - stack additions, dependency choices, versions, and technologies to avoid.
+- `.planning/research/FEATURES.md` - table-stakes features, differentiators, anti-features, UX recommendations, and MVP ordering.
+- `.planning/research/ARCHITECTURE.md` - component boundaries, data flows, service loader/patcher design, and build order.
+- `.planning/research/PITFALLS.md` - critical security, GitOps, SOPS, Kubernetes, and operator workflow failure modes.
 
-### Gaps to Address
+Primary local context referenced by the research includes `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, existing `scaffold/internal/*` packages, `.local/gitops-homelab/apps/fintrack/*`, `.local/gitops-homelab/.sops.yaml`, Argo CD ApplicationSet configuration, and `scripts/scaffold-verify.sh`.
 
-- Validate wildcard NPM proxy-host routing before committing to the simplified local exposure design.
-- Confirm exact Proxmox version, network ranges, VM/LXC templates, and resource capacity during phase planning.
-- Decide and test the minimal Argo CD/KSOPS bootstrap mechanism.
-- Confirm GitHub repository ownership and cross-repository write credentials for CI tag updates.
-
-## Sources
-
-Detailed citations and version evidence are retained in `STACK.md`, `FEATURES.md`, `ARCHITECTURE.md`, and `PITFALLS.md`.
+External documentation referenced across the research includes official Cobra, Go, Dockerfile, Kubernetes ConfigMap/Secret/env, Kustomize, SOPS, Argo CD, and kyaml documentation. Detailed citations remain in the individual research files.
 
 ---
-*Research completed: 2026-07-07*
+*Research completed: 2026-07-12*
 *Ready for roadmap: yes*

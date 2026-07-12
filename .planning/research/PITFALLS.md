@@ -1,355 +1,294 @@
-# Pitfalls Research
+# Pitfalls Research: v1.1 Scaffolder CLI Service
 
-**Domain:** GitOps homelab deployment platform (k3s on Proxmox, NPM reverse proxy, split DNS, LXC shared services)
-**Researched:** 2026-07-07
-**Confidence:** MEDIUM (web-verified against official docs, GitHub issues, and community post-mortems; cross-checked across multiple sources)
+**Domain:** Homelab GitOps scaffolder that updates existing Kubernetes services and SOPS-encrypted secrets  
+**Researched:** 2026-07-12  
+**Overall confidence:** MEDIUM  
+**Scope:** Common mistakes, security risks, and operational failure modes when adding CLI binary mode, Dockerfile-first detection, Dockerfile generation, existing-service updates, env var updates, encrypted secret updates, and GitOps commits.
 
-Phase names below are descriptive (the roadmap doesn't exist yet). Suggested phase buckets referenced throughout:
-**P-Infra** (k3s VM + cluster provisioning), **P-GitOps** (ArgoCD/Flux + bootstrap + secrets), **P-Ingress** (DNS/NPM/TLS automation), **P-Services** (LXC shared services: Postgres/Redis/Debezium/NATS), **P-Scaffold** (per-project scaffolding tool + CI), **P-Public** (opt-in public exposure), **P-Ops** (backups/recovery hardening).
+## Executive Findings
+
+The riskiest change in v1.1 is not installing the scaffolder as a CLI; it is letting the CLI mutate existing GitOps-managed services. Creation workflows can be template-driven. Update workflows must preserve human edits, Argo CD sync semantics, SOPS metadata, generated resource naming, and rollout behavior. Treat every update as a deterministic Git patch with preflight validation, not as "edit some YAML."
+
+Secret handling is the sharpest security boundary. SOPS supports safe tree-level edits and Kubernetes-focused partial encryption, but a CLI can still leak plaintext through logs, shell history, temp files, decrypted diffs, wrong working directories, or incorrect `.sops.yaml` rule selection. The CLI should never ask users to paste secrets into command arguments, never write decrypted files in place, and never commit a file unless it proves secret values are encrypted.
+
+GitOps reconciliation creates a delayed failure mode: the CLI can produce a clean local commit that later causes Argo CD to prune, fail sync, leave pods running with stale env vars, or silently drift because the wrong object was edited. The update flow needs render validation, semantic diffing, commit boundaries, and a post-commit reconciliation check.
 
 ## Critical Pitfalls
 
-### Pitfall 1: Split-DNS breaks cert-manager's DNS-01 self-check
+### Pitfall 1: Non-idempotent YAML mutation corrupts existing services
 
-**What goes wrong:**
-Certificates get stuck in `propagation check failed` / "DNS record not yet propagated" forever. cert-manager creates the `_acme-challenge` TXT record in Cloudflare correctly, but never sees it, so it never tells Let's Encrypt to validate.
+**What goes wrong:** Re-running the CLI duplicates env entries, rewrites unrelated annotations, drops manually added fields, changes list ordering in noisy ways, or replaces an existing overlay with scaffold defaults.
 
-**Why it happens:**
-cert-manager verifies TXT propagation using the recursive nameservers from the pod's `/etc/resolv.conf` — which in this setup chains to CoreDNS → the Mikrotik LAN DNS. The Mikrotik serves internal/authoritative-looking answers for `yourdomain.com` (that's the whole point of split DNS), so the public TXT record is invisible from inside the cluster. This is the single most common cert-manager failure in split-DNS homelabs (cert-manager issues #6572, #3234, #5917).
+**Why it happens:** Update logic treats YAML as text or as a newly generated template instead of loading existing Kubernetes objects, applying targeted structural changes, and preserving unknown fields. Existing services are not identical to scaffold output after weeks of operation.
 
-**How to avoid:**
-Configure cert-manager with `--dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53` **and** `--dns01-recursive-nameservers-only=true` (Helm values: `dns01RecursiveNameservers` / `dns01RecursiveNameserversOnly`). Bake this into the cluster bootstrap manifests from day one, not as a post-hoc fix.
+**Consequences:** Git diffs become unreviewable, Argo CD applies unintended changes, rollback is hard, and the operator loses trust in the scaffolder.
 
-**Warning signs:**
-First `Certificate` sits `Ready: False` with an active `Challenge` for >10 minutes; challenge describe shows "propagation check failed"; `dig TXT _acme-challenge.myapp.domain.com @1.1.1.1` returns the record but the same query via cluster DNS doesn't.
+**Prevention:**
+- Parse YAML into Kubernetes-aware structures and patch only owned fields.
+- Make every update operation repeatable: second run should produce no diff.
+- Maintain explicit ownership markers for scaffolder-managed blocks where useful, but never delete unowned fields.
+- Validate with `kubectl kustomize` or equivalent render before commit.
+- Add regression tests using a service manifest with extra annotations, probes, resources, ingress settings, and manually added env vars.
 
-**Phase to address:** P-Ingress (cert-manager install must include the flags; verify with a test cert before automating per-app certs).
+**Detection:** Re-running the same command changes Git; diffs include unrelated formatting or field churn; manually added manifest fields disappear.
 
----
+**Phase to address:** Existing-service discovery/update core.
 
-### Pitfall 2: Debezium replication slot WAL bloat fills the Postgres LXC disk
+### Pitfall 2: Secret values leak during SOPS update flow
 
-**What goes wrong:**
-Postgres WAL grows unbounded until the LXC disk is full, at which point Postgres panics and shuts down — taking every app database with it. This is the classic Debezium production killer, and it's *worse* on a low-traffic homelab, not better.
+**What goes wrong:** Plaintext secrets appear in process lists, shell history, terminal logs, debug logs, temp files, Git diffs, crash reports, or a accidentally committed cleartext Kubernetes Secret.
 
-**Why it happens:**
-A logical replication slot pins WAL until the consumer (Debezium) confirms it. Two homelab-specific triggers: (1) Debezium/NATS is down or misconfigured and nobody notices — the slot goes inactive but keeps retaining WAL for the **entire** database, not just tracked tables; (2) the tracked database is low-traffic, so Debezium never gets a chance to advance the confirmed LSN even while running (Gunnar Morling's "insatiable replication slot"). Also: slots survive connector deletion — deleting/recreating a Debezium connector during experimentation leaves an orphaned slot silently eating disk.
+**Why it happens:** The CLI accepts secrets as command-line args, decrypts files in place, shells out unsafely, prints command traces, or writes intermediate decrypted YAML. SOPS can safely edit encrypted trees, but only if the caller controls IO and avoids plaintext persistence.
 
-**How to avoid:**
-- Set `heartbeat.interval.ms` on the connector plus a heartbeat action query (or rely on `pg_logical_emit_message()`, PG 14+) so the slot advances on low-traffic databases.
-- Set `max_slot_wal_keep_size` in `postgresql.conf` (e.g. a few GB) as a hard safety net — slot invalidation forces a re-snapshot, which is annoying but far better than a down database.
-- Write a runbook line: "if a Debezium connector is deleted, drop its slot: `SELECT pg_drop_replication_slot(...)`."
-- Add `pg_replication_slots` lag to whatever minimal monitoring exists (even a cron + ntfy).
+**Consequences:** Git history or local machine artifacts contain credentials. Rotating the secret may require rotating downstream services, GHCR tokens, database passwords, or API credentials.
 
-**Warning signs:**
-`SELECT slot_name, active, pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) FROM pg_replication_slots;` shows growing lag or `active = f`; `pg_wal/` directory growing steadily on the LXC.
+**Prevention:**
+- Accept secret values through hidden prompt, stdin, or `--value-file`, not positional args.
+- Prefer `sops set --value-stdin` / structured SOPS operations over full-file decrypt/edit/re-encrypt.
+- If full decrypt is unavoidable, use memory-only handling or secure temp files with cleanup traps and restrictive permissions.
+- Redact secret values from logs and errors by default.
+- Add a pre-commit validation step that fails if Kubernetes Secret `data`/`stringData` values are plaintext under the repository's SOPS policy.
+- Never enable `set -x` around secret handling.
 
-**Phase to address:** P-Services (Debezium provisioning must ship with heartbeat + `max_slot_wal_keep_size` configured, not defaults).
+**Detection:** `git diff` shows readable secret values; shell history contains secret-looking tokens; temp directories contain decrypted YAML; CLI debug logs include submitted values.
 
----
+**Phase to address:** SOPS secret update flow.
 
-### Pitfall 3: GitOps bootstrap chicken-and-egg — secrets needed before the secret machinery exists
+### Pitfall 3: Wrong `.sops.yaml` rule or working directory encrypts with the wrong recipients
 
-**What goes wrong:**
-The GitOps repo can't be fully declarative because the first sync needs secrets that don't exist yet: ArgoCD's repo credentials (if repo is private), the GHCR pull secret, the Cloudflare API token for cert-manager, and the sealed-secrets/SOPS decryption key itself. People either hand-apply secrets ad-hoc (undocumented, unreproducible — cluster rebuild fails months later) or commit plaintext secrets to git "temporarily" (forever).
+**What goes wrong:** The CLI creates or updates a secret file that cannot be decrypted by the GitOps reconciler or cluster-side decryptor, or encrypts values for the wrong environment.
 
-**Why it happens:**
-Every secret tool has the same recursion: sealed-secrets needs its controller running (and its private key restored on rebuild); External Secrets needs SecretStore credentials; SOPS needs the age key on the machine doing decryption. "The cluster is ephemeral and rebuildable" is only true if the bootstrap path is scripted.
+**Why it happens:** SOPS discovers `.sops.yaml` from the current working directory and applies the first matching creation rule. A dev-server CLI may be launched from the app repo while mutating the GitOps repo, so relative rule matching can be wrong.
 
-**How to avoid:**
-Pick ONE bootstrap ritual and script it. For a solo operator the simplest robust pattern: a single `bootstrap.sh` that (1) installs ArgoCD, (2) applies a small, well-known set of bootstrap secrets from an encrypted source (SOPS+age file in the repo, age key kept off-cluster in a password manager), (3) applies the root app-of-apps Application. Everything after that is GitOps. If using sealed-secrets instead: **back up the controller's private key immediately** — losing it makes every SealedSecret in git undecryptable, i.e., your "rebuildable" cluster isn't.
+**Consequences:** Argo CD sync fails on secret decryption, or worse, the wrong recipient set can decrypt the secret.
 
-**Warning signs:**
-Any `kubectl create secret` typed interactively that isn't recorded in the bootstrap script; a cluster-rebuild dry run that stalls asking "where does X credential come from?"
+**Prevention:**
+- Always run SOPS from the GitOps repo root or pass explicit config/recipient parameters.
+- Resolve and display the target secret path before mutation.
+- Validate decryptability after write using the same key path expected by the operator/reconciler.
+- Require a `.sops.yaml` match for new secret files; fail closed if no rule matches.
+- Keep environment-specific secret paths explicit.
 
-**Phase to address:** P-GitOps (define the bootstrap script + secret strategy before scaffolding any apps; test by rebuilding the k3s VM once — cheap insurance given the cluster is designed to be disposable).
+**Detection:** New encrypted file has unexpected SOPS metadata; `sops -d` fails locally or in reconciliation; same command behaves differently from different working directories.
 
----
+**Phase to address:** CLI runtime/install + SOPS update flow.
 
-### Pitfall 4: Double-proxy (NPM → Traefik/k3s ingress) breaks websockets, uploads, and forwarded headers
+### Pitfall 4: ConfigMap/Secret changes do not restart workloads
 
-**What goes wrong:**
-Apps deploy fine but misbehave subtly: websockets/SSE disconnect (T3 apps using tRPC subscriptions or Next.js HMR-ish live features), file uploads >1MB fail with 413, apps generate `http://` URLs or redirect-loop, and every request appears to come from NPM's IP (auth logs, rate limiting, Zitadel audit trails all useless).
+**What goes wrong:** The GitOps repo and Kubernetes Secret/ConfigMap update successfully, but the running app keeps using old env vars until a manual rollout or pod restart.
 
-**Why it happens:**
-Two full nginx/traefik proxy layers each apply their own defaults: ingress-nginx's `proxy-body-size` default is **1m**; websockets need the Upgrade/Connection toggle enabled per NPM proxy host plus long read timeouts at *both* layers; NPM rewrites `X-Forwarded-Proto` on the inner hop (NPM issues #1556, #5216), and the k3s ingress doesn't trust NPM's `X-Forwarded-For` unless told to.
+**Why it happens:** Environment variables are resolved when a container starts. Updating a referenced Secret or ConfigMap does not automatically update env vars in already running containers. Kustomize-generated names can trigger rollout when references change, but direct Secret/ConfigMap edits may not.
 
-**How to avoid:**
-Standardize the hop once, in the scaffolding templates, not per-app:
-- NPM proxy host template: websockets ON, `client_max_body_size` raised (e.g. 100m+), pass `X-Forwarded-Proto $scheme`, `X-Forwarded-For $proxy_add_x_forwarded_for`.
-- k3s ingress: configure trusted proxy IPs (Traefik `forwardedHeaders.trustedIPs` = NPM's IP) so headers propagate; set matching body-size/timeout defaults.
-- Consider terminating TLS only at NPM and using plain HTTP to the ingress on the LAN (one TLS layer, simpler cert story inside) — decide once, document it.
-- Include a websocket + 10MB-upload check in the end-to-end smoke test for the first app.
+**Consequences:** Operator thinks the update worked; app behavior remains stale; emergency secret rotation is incomplete.
 
-**Warning signs:**
-413 errors on upload; websocket connections dropping at exactly 60s; app logs showing NPM's IP for all clients; OAuth redirect URIs generated as `http://`.
+**Prevention:**
+- Decide the platform pattern: generated ConfigMaps/Secrets with content-hash names, or explicit rollout annotation bumps on Deployment pod templates.
+- For this CLI, add/update a deterministic `scaffolder.homelab.dev/config-revision` or checksum annotation on the pod template whenever env/secret inputs change.
+- Include rollout status/reconciliation verification after commit.
+- Document when immutable Secret/ConfigMap resources require replacement plus pod recreation.
 
-**Phase to address:** P-Ingress (proxy-hop contract), verified in the v1 success-gate app (P-Scaffold end-to-end test).
+**Detection:** Argo CD shows Synced/Healthy but pod start time predates the secret/env change; app logs show old config; rollout history has no new ReplicaSet.
 
----
+**Phase to address:** Env var update flow + SOPS secret update flow.
 
-### Pitfall 5: Proxmox snapshots treated as Postgres backups
+### Pitfall 5: Secret/non-secret classification is wrong
 
-**What goes wrong:**
-"Postgres is backed up — vzdump runs nightly." Then a restore is needed and the snapshot is crash-consistent at best (equivalent to yanking power) or, worse, the only copies live on the same single MS-01 that just died. Snapshot restore also restores the *whole* LXC — you can't recover one database or one table.
+**What goes wrong:** Credentials are stored as non-secret env vars in a Deployment or ConfigMap, or harmless config is put into encrypted Secret files, making review and operations harder.
 
-**Why it happens:**
-Per-service LXC snapshots are the stated rationale for the one-LXC-per-service design, so it's natural to assume snapshots = backup. But snapshot backups of a database can cut transactions mid-flight (Proxmox forum guidance is explicit: pair snapshots with a consistent dump), and a single-node homelab has no second copy by default.
+**Why it happens:** The CLI asks "env var or secret?" without guardrails, or classifies only by user input. Common keys such as `DATABASE_URL`, `TOKEN`, `CLIENT_SECRET`, `PASSWORD`, and API keys are easy to mishandle.
 
-**How to avoid:**
-- Nightly `pg_dump`/`pg_dumpall` (logical) inside or against the Postgres LXC, shipped **off the MS-01** (dev server, S3/B2, anywhere). Same idea for Redis (RDB copy), NATS JetStream (`store_dir` copy or stream backup), Zitadel (its Postgres).
-- Keep vzdump snapshots too — they're great for fast whole-container rollback — just don't call them the backup.
-- Test one restore before declaring v1 done.
+**Consequences:** Sensitive values become visible in Git, Argo CD UI, Kubernetes object output, or logs. Conversely, over-encryption obscures routine config changes.
 
-**Warning signs:**
-No backup artifact exists outside the MS-01; nobody has ever run a restore; backup job logs unchecked for weeks.
+**Prevention:**
+- Add name-based warnings for likely secret keys and require explicit confirmation to store them as non-secret.
+- Default likely-sensitive keys to SOPS-backed Kubernetes Secret references.
+- Keep non-secret env vars in a reviewed ConfigMap/Deployment section and secrets in SecretKeyRefs.
+- Never copy secret values into ConfigMaps for interpolation.
 
-**Phase to address:** P-Ops (but the *decision* — logical dumps + off-host copy — should be recorded in P-Services so LXCs are provisioned with backup jobs from the start).
+**Detection:** Git grep finds token-like values in plain manifests; `kubectl get cm -o yaml` contains credentials; app env config mixes cleartext `*_SECRET` keys with non-secret values.
 
----
+**Phase to address:** Env var update UX + secret update UX.
 
-### Pitfall 6: Mikrotik regexp DNS entries shadow real DNS and don't behave like wildcards
+### Pitfall 6: Update flow accidentally changes Argo CD prune/self-heal blast radius
 
-**What goes wrong:**
-A "wildcard" static entry like `.*\.domain\.com` on the Mikrotik silently hijacks *everything* under the domain — including apps intentionally made public (which should resolve to the AWS CHR path or be validated against public DNS), Cloudflare-hosted records like `_acme-challenge`, MX/verification records, etc. Or the regexp is written wrong (unescaped dots, uppercase) and matches nothing / too much intermittently.
+**What goes wrong:** A scaffolder update changes sync options, finalizers, labels, resource names, or Application paths. Argo CD then prunes resources, stops tracking a service, or starts self-healing changes the operator expected to make manually.
 
-**Why it happens:**
-RouterOS has no true wildcard DNS — only regexp entries, which are lowercase-only, require escaping (`.*\.domain\.com$`), are slower than plain entries, and match with higher effective priority than forwarding to upstream. People copy a forum regexp and never audit what it swallows.
+**Why it happens:** The CLI treats Application manifests and app resource manifests as owned templates, not as operational policy. Argo CD automated sync, pruning, self-heal, and finalizers are high-impact settings.
 
-**How to avoid:**
-Prefer **explicit per-app static entries** over a domain-wide regexp — this fits the platform perfectly, since the scaffolding tool creates the DNS entry per app anyway (Mikrotik REST API: `/ip/dns/static`). If a regexp catch-all is used, scope it to a dedicated subdomain level (e.g. `.*\.lab\.domain\.com`) and keep apex/public names out of it. Also: don't leave `allow-remote-requests=yes` reachable from WAN (open-resolver — firewall port 53 on the WAN interface), and remember clients using DoH (Firefox default, some IoT) bypass Mikrotik DNS entirely and will resolve public records instead.
+**Consequences:** Resources are deleted or orphaned from one commit. In the worst case, a directory rename or path error makes Argo CD see desired resources as removed.
 
-**Warning signs:**
-Public app resolves to the LAN NPM IP from inside the network when it should go through the public path (or vice versa); ACME TXT lookups behaving oddly (compounds Pitfall 1); `dig` from a phone on WiFi vs. cellular gives confusingly different results.
+**Prevention:**
+- Do not modify Argo CD Application sync policy during ordinary service updates.
+- Protect resource identity fields: namespace, kind, name, selector labels, Argo tracking labels/annotations, and app path.
+- Render and diff before commit; flag deletes/prunes as a separate confirmation step.
+- Fail if the rendered object set has fewer resources than before unless the command is explicitly a delete command.
 
-**Phase to address:** P-Ingress (DNS entry strategy decided when automating Mikrotik entries); P-Public (verify public/local resolution matrix per app).
+**Detection:** Local diff changes `Application.spec.syncPolicy`, finalizers, app path, selectors, or resource names; Argo CD shows unexpected prune operations after commit.
 
----
+**Phase to address:** Existing-service update core + GitOps commit flow.
 
-### Pitfall 7: GHCR pull secret silently expires or lacks scope — deploys break weeks later
+### Pitfall 7: Kustomize generator names are edited as if they were stable object names
 
-**What goes wrong:**
-Everything works at setup; weeks later a new deploy hits `ImagePullBackOff: denied`. The fine-grained PAT used for the imagePullSecret expired (fine-grained PATs have mandatory expiry, max ~1 year), or the package is linked to a private repo and the token lacks `repo` scope, or a new app's package defaulted to private visibility while the pipeline assumed public.
+**What goes wrong:** The CLI updates a generated Secret or ConfigMap name directly, breaks Deployment references, or creates a duplicate object instead of updating the generator input.
 
-**Why it happens:**
-GHCR has no pull rate limits (unlike Docker Hub), so people assume auth is the easy part. But: private packages need a PAT with `read:packages` (+ `repo` if linked to a private repository); GHCR packages default to private on first push; token rotation is a human process with no reminder. Bonus trap: base images in Dockerfiles still come from Docker Hub and *are* rate-limited (200 pulls/6h unauthenticated per IP) — a cluster rebuild pulling many images can hit it.
+**Why it happens:** Kustomize appends content hashes to generated ConfigMap/Secret names and rewrites references at render time. Raw YAML names are not always the names applied to the cluster.
 
-**How to avoid:**
-- Decide per-project default: public packages (no pull secret needed, simplest for a solo dev) vs. private (scaffolding must create/verify the pull secret).
-- Use one long-lived classic PAT with `read:packages` only (or a dedicated machine-user), stored via the bootstrap secret path (Pitfall 3), referenced by a single namespace-replicated secret — not one token per app.
-- Scaffolding should set package visibility explicitly (`gh api` or `packages: write` + visibility step in the workflow).
-- Calendar reminder or check for token expiry; mirror/pin base images or authenticate Docker Hub pulls in CI.
+**Consequences:** Pods reference missing config, Argo CD sync fails, or stale generated objects accumulate.
 
-**Warning signs:**
-`ImagePullBackOff` on a *new* deploy while old pods run fine (cached image); GH Actions push succeeds (uses `GITHUB_TOKEN`) but cluster pull fails (uses PAT) — the asymmetry is the tell.
+**Prevention:**
+- Detect whether a service uses Kustomize generators before editing.
+- Update generator sources (`configMapGenerator`, `secretGenerator`, env files, literals, or patch files), not rendered names.
+- Always compare rendered output before and after mutation.
+- Do not mix SOPS-managed Secret manifests and Kustomize `secretGenerator` unless the platform explicitly supports that pattern.
 
-**Phase to address:** P-Scaffold (visibility + pull-secret handling in templates); P-GitOps (single pull secret in bootstrap).
+**Detection:** Rendered names contain hash suffixes; CLI-created Secret name lacks the suffix; Deployment references a name that does not exist in rendered output.
 
----
+**Phase to address:** Existing-service discovery/update core.
 
-### Pitfall 8: ArgoCD self-management + finalizers + auto-prune = accidental platform deletion
+### Pitfall 8: Git commit flow publishes partial or invalid state
 
-**What goes wrong:**
-With app-of-apps, auto-sync, prune, and the `resources-finalizer.argocd.argoproj.io` finalizer everywhere, a bad git commit (renamed directory, botched ApplicationSet template, deleted YAML) cascades: ArgoCD prunes Applications, finalizers tear down all their child resources — ingresses, certs, PVCs — cluster-wide, from one push. If ArgoCD manages itself, a bad ArgoCD values change can also brick the thing that would fix it.
+**What goes wrong:** The CLI commits a Dockerfile but not matching manifests, commits an encrypted secret without the Deployment reference, commits manifests that do not render, or pushes while the GitOps repo has uncommitted operator changes.
 
-**Why it happens:**
-Each feature is individually recommended ("Git as source of truth", "prune keeps the cluster clean", "finalizers make deletes work"), and together they remove every safety net. Homelabs adopt all of them at once because tutorials do.
+**Why it happens:** Update commands are implemented as independent file writes and immediate commits instead of a transaction-like plan/apply/verify flow.
 
-**How to avoid:**
-- Tier the sync policies: platform-critical apps (ArgoCD itself, cert-manager, ingress, sealed-secrets) get auto-sync **without prune** (or manual sync); leaf apps get full auto-sync+prune+selfHeal.
-- Add finalizers deliberately per-app, not globally.
-- Keep the root app-of-apps `kubectl apply`-able from the bootstrap script so ArgoCD can always be re-seeded.
-- Remember the escape hatch: cluster is disposable by design — but only if Pitfall 3 (bootstrap) and Pitfall 5 (state outside) are actually solved.
+**Consequences:** Argo CD reconciles a broken intermediate state; rollback requires manual Git surgery; unrelated user changes are swept into scaffolder commits.
 
-**Warning signs:**
-ArgoCD UI showing a wall of "Pruning" after a refactor commit; `argocd app list` shrinking unexpectedly; fear of touching the GitOps repo structure.
+**Prevention:**
+- Require a clean Git worktree unless the user explicitly includes known files.
+- Stage only files the scaffolder changed.
+- Run pre-commit checks: YAML parse, Kustomize render, Kubernetes schema validation where available, SOPS decrypt/metadata check, secret plaintext scan, and semantic diff summary.
+- Use one logical commit per service update.
+- On failure, leave files unstaged and print exact recovery steps.
 
-**Phase to address:** P-GitOps (sync-policy tiers defined when installing ArgoCD); revisit in P-Scaffold (what policy the scaffold stamps onto app manifests).
+**Detection:** Commit includes unrelated files; Argo CD sync fails immediately after CLI push; `git status` was dirty before the command; commit message does not explain service/key changes.
 
----
+**Phase to address:** GitOps commit flow.
 
-### Pitfall 9: Public exposure path leaks admin surfaces or ships apps with no auth
+### Pitfall 9: Dockerfile-first detection overwrites intentional container behavior
 
-**What goes wrong:**
-The AWS CHR → home → NPM path forwards by hostname; once the tunnel exists, *any* hostname NPM knows about is potentially reachable from the internet — including ArgoCD, NPM's own admin UI (port 81), Traefik dashboard, or an app that was "local-only by default" but got a public DNS record by accident. Internet scanners find admin panels within hours; NPM's admin UI and ArgoCD both have had exploited CVEs.
+**What goes wrong:** The CLI generates or replaces a Dockerfile for a project that already has an intentional container contract, private base image, special build args, healthcheck, or runtime command.
 
-**Why it happens:**
-Split DNS makes local and public hostnames look identical (`myapp.domain.com` everywhere), so the only thing separating "local-only" from "public" is which resolver answers and what the CHR forwards — easy to get wrong when the same NPM instance serves both. Opt-in public exposure done by hand ("just add the Cloudflare record") skips the auth question.
+**Why it happens:** Replacing T3 detection with Dockerfile-first detection can become "Dockerfile template wins." Existing projects may be containerizable but not standard Node/T3 apps.
 
-**How to avoid:**
-- Make the public path deny-by-default at the **edge**: CHR forwards only to an explicit allowlist (or NPM uses a separate public-facing entry that only routes explicitly-flagged hosts). A default-vhost 444/blackhole in NPM for unknown hostnames on the public path.
-- Scaffolding's `public: true` flag should require an auth decision: app has its own auth (Zitadel/NextAuth) or gets an SSO gate (oauth2-proxy/Authelia against the existing Zitadel) — never "public and open."
-- Never route ArgoCD, NPM admin (81), Proxmox, or Traefik dashboard through the public path; keep them LAN/VPN-only. Verify with an external scan (nmap from the AWS box, or a phone on cellular) after enabling public ingress.
+**Consequences:** CI builds succeed but runtime behavior breaks; image tags point to a container that lacks required files, env, ports, or health checks.
 
-**Warning signs:**
-Fetching `https://argocd.domain.com` from cellular data returns a login page instead of a timeout; NPM access logs showing bot paths (`/wp-login.php`, `/.env`) on hosts you thought were local-only.
+**Prevention:**
+- If a Dockerfile exists, inspect and preserve it; do not overwrite.
+- If missing, generate a Dockerfile only after showing the detected project type and proposed runtime port/build command.
+- Keep Dockerfile generation separate from GitOps service update until the image builds locally or in CI.
+- Stamp generated files with a small marker so future update logic can distinguish generated defaults from user-owned files.
 
-**Phase to address:** P-Public (edge allowlist + auth requirement is the core design of this phase, not an afterthought).
+**Detection:** Existing Dockerfile diff replaces large sections; generated Dockerfile assumes npm/T3 where project uses another runtime; Kubernetes port does not match Dockerfile/app port.
 
----
+**Phase to address:** Dockerfile-first detection + Dockerfile generation.
 
-### Pitfall 10: LXC memory limits OOM-kill Postgres; NATS JetStream defaults lose data
+### Pitfall 10: CLI binary runs with ambiguous repo context
 
-**What goes wrong:**
-Two flavors of the same "defaults are wrong in containers" problem: (a) Postgres inside an LXC hits the cgroup memory ceiling and gets OOM-killed mid-write — no graceful degradation, and tools inside the LXC often mis-read available memory (seeing host RAM), so `shared_buffers`/`work_mem` get sized against 64GB when the LXC has 4GB. (b) NATS JetStream's default `store_dir` is under `/tmp` — streams silently vanish on LXC reboot; no `max_store`/stream `max_bytes` means a runaway publisher fills the disk.
+**What goes wrong:** The scaffolder edits the app repo instead of the GitOps repo, finds the wrong service by directory name, uses a stale clone, or commits to the wrong branch/remote.
 
-**Why it happens:**
-Native-binary-in-LXC (correctly chosen here over Docker-in-LXC) means *you* are the operator setting every limit; distro defaults assume bare metal. Homelab guides mostly cover the install, not the sizing.
+**Why it happens:** As an installed dev-server binary, the CLI can be launched from anywhere. The old operator workflow likely assumed a known working directory.
 
-**How to avoid:**
-- Postgres: size `shared_buffers` (~25% of the **LXC's** memory limit), set the LXC memory with headroom above expected Postgres usage, and prefer a modest swap allocation on the LXC so pressure degrades before OOM.
-- NATS: set `store_dir` to a real persistent path, `max_store` reflecting actual allocated disk, per-stream `max_bytes`/`max_age`, file storage (not memory) for anything that must survive restart; keep 15–25% disk headroom above the sum of stream reservations.
-- Redis: set `maxmemory` + eviction policy explicitly; without it Redis grows until the cgroup kills it.
-- Budget the whole MS-01 up front (see Performance Traps) so LXC limits + k3s VM + Proxmox overhead actually fit.
+**Consequences:** Changes are lost, committed to the wrong repository, or never reconciled by Argo CD.
 
-**Warning signs:**
-`dmesg`/journal on the Proxmox host showing oom-killer events for the LXC's cgroup; Postgres logs with "server process was terminated by signal 9"; JetStream streams empty after a container restart.
+**Prevention:**
+- Require explicit GitOps repo path config on install, persisted in a small config file.
+- At runtime, verify repo remote, branch, and root marker files before mutation.
+- Resolve service identity from GitOps metadata, not just app directory basename.
+- Print target app repo, GitOps repo, service path, branch, and changed files before apply.
 
-**Phase to address:** P-Services (provisioning templates for each LXC include explicit memory/disk/config limits).
+**Detection:** CLI output shows relative paths only; `git remote -v` does not match expected GitOps repo; Argo CD watches a different branch than the CLI commits to.
 
----
+**Phase to address:** CLI install/runtime configuration.
 
-### Pitfall 11: Over-engineering the platform before one app ships
+## Moderate Pitfalls
 
-**What goes wrong:**
-The platform grows Crossplane, Vault, service mesh, multi-env ApplicationSets, Renovate, and a bespoke CLI framework — and six months in, zero apps are deployed and every component is a maintenance liability for one person. Alternatively, the scaffolding tool becomes a "platform product" with plugins before it has scaffolded its second project.
+### Pitfall 11: Environment variable names accepted by CLI are ignored by Kubernetes
 
-**Why it happens:**
-GitOps content is written by and for platform teams at companies; copying their reference architectures imports their org-scale problems. Solo homelabs have effectively unlimited "requirements" and no external forcing function.
+**What goes wrong:** The CLI adds keys that Kubernetes cannot expose as env vars, so pods start without the expected variables.
 
-**How to avoid:**
-The project already has the right success gate — **one real app live end-to-end**. Enforce it: any component that isn't on the critical path of "push → build → deploy → resolve → TLS" is deferred (this matches the stated out-of-scope list: no monitoring stack, no HA, no self-hosted registry in v1). Scaffolding v1 = copy templates + string substitution + git commit; no plugin system. Prefer boring: sealed-secrets or SOPS over Vault; plain Application manifests over ApplicationSets until app #3 exists.
+**Prevention:** Validate env names against Kubernetes env var restrictions before writing. Fail fast on invalid names rather than relying on Kubernetes warnings.
 
-**Warning signs:**
-Roadmap phases that don't mention an app; comparing secret managers for the second week; the scaffold tool has a config file schema before it has generated one project.
+**Phase to address:** Env var update flow.
 
-**Phase to address:** All phases — but concretely, roadmap construction: every phase should end with a demonstrable step toward the v1 gate app.
+### Pitfall 12: Immutable Secrets or ConfigMaps are treated as mutable
 
----
+**What goes wrong:** Updating `.data` fails because the object is immutable, or deleting/recreating it leaves existing pods mounted to old object state.
 
-## Technical Debt Patterns
+**Prevention:** Detect `immutable: true` in rendered manifests. Require explicit replace workflow and rollout.
 
-Shortcuts that seem reasonable but create long-term problems.
+**Phase to address:** Env var update flow + secret update flow.
 
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Hand-applied secrets ("I'll GitOps-ify it later") | Unblocks today | Cluster rebuild fails; undocumented state | Never — record every secret in the bootstrap path the day it's created |
-| Manual NPM proxy host / Mikrotik DNS entry for one app | Faster than automating | Per-app drift; automation never gets validated; "works for app 1, breaks for app 5" | OK for the *first* app only, if replaced by automation before app #2 |
-| One wildcard cert for `*.domain.com` shared everywhere | One cert to manage | Single key compromise exposes all hostnames; NPM/k3s cert duplication confusion | Acceptable for a solo homelab if the key stays in one place (NPM), documented |
-| vzdump snapshots as the only backup | Zero extra tooling | Crash-consistent only; all copies on the dying host | Never for Postgres/Zitadel; fine for stateless LXCs |
-| `latest` tag + `imagePullPolicy: Always` instead of digest/SHA tags | Simpler CI | Non-reproducible deploys; ArgoCD can't diff; rollback is guesswork | Never — scaffold should stamp git-SHA tags from day one |
-| Skipping resource requests/limits on app pods | Apps schedule easily | One leaky app starves the single-node cluster; kubelet evictions look like platform bugs | MVP-only; add defaults to the scaffold template early |
-| Running ArgoCD with the initial admin password, no SSO | Faster setup | Shared static credential; no audit; painful to fix later | Acceptable for LAN-only v1; wire Zitadel OIDC in a later phase (it's already running) |
+### Pitfall 13: Secret update code creates RBAC pressure to list all namespace secrets
 
-## Integration Gotchas
+**What goes wrong:** The CLI or validation tooling asks for broad Kubernetes secret read permissions. Anyone with list/watch on Secrets in a namespace can effectively read all secret data.
 
-Common mistakes when connecting to external services.
+**Prevention:** Prefer Git-only validation. If cluster validation is needed, scope it to non-secret metadata and Argo CD status, not `kubectl get secrets -o yaml`.
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| Cloudflare (cert-manager) | Global API Key, or token missing `Zone → Zone → Read` | Scoped API token: `Zone.DNS:Edit` + `Zone.Zone:Read`, restricted to the one zone |
-| Cloudflare (public DNS) | Proxied (orange-cloud) record pointing at the AWS CHR while expecting raw TCP forward / non-HTTP traffic | Decide proxied vs. DNS-only explicitly per record; DNS-only for the CHR path unless Cloudflare proxying is a deliberate layer |
-| Mikrotik REST API (scaffold automation) | Using the admin account over HTTP for automation | Dedicated API user with a policy limited to DNS writes, HTTPS (`www-ssl`) only |
-| GHCR | Assuming package inherits repo visibility; token without `repo` scope for private-repo packages | Set package visibility explicitly in CI; PAT with `read:packages` (+`repo` if needed) |
-| GitHub Actions → GitOps repo | CI pushes manifest bumps to the same branch ArgoCD watches with no concurrency control | Use a distinct GitOps repo (or path) with CI committing image-tag bumps via a serialized job; or use ArgoCD Image Updater and skip CI-side bumps |
-| Zitadel (existing LXC) | Apps hardcode LAN IP; redirect URIs registered as `http://` | Use the split-DNS hostname with valid TLS (Zitadel behind NPM too); register `https://` redirect URIs; treat Zitadel as untouchable prod (it's the one pre-existing stateful service) |
-| k3s ↔ LXC services | Relying on IPs; Postgres `pg_hba.conf`/`listen_addresses` defaults blocking the k3s VM subnet | DNS names for service endpoints (Mikrotik static entries); explicitly allow the k3s VM/pod SNAT address range in `pg_hba.conf`; remember pods egress with the VM's IP |
-| AWS Mikrotik CHR | Forwarding all :443 to home NPM (full exposure), no fail-closed behavior | Explicit per-host/per-port forward rules; default-drop; consider WireGuard tunnel home rather than raw dst-nat |
+**Phase to address:** Reconciliation verification.
 
-## Performance Traps
+### Pitfall 14: Generated commits hide security-relevant changes
 
-Patterns that work at small scale but fail as usage grows. Scale here = number of apps/services on one MS-01, not users.
+**What goes wrong:** A commit says "update service" but changes public exposure, secrets, env vars, image pull behavior, or ingress hostnames.
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| No RAM budget across Proxmox + k3s VM + LXCs | Host swapping/OOM; random LXC kills; k3s VM feels slow | Write the budget once: e.g. (assuming 64GB MS-01) host ~4GB, k3s VM 16–24GB, Postgres 4–8GB, Redis 2GB, NATS 2GB, Debezium (JVM!) 2–4GB, Zitadel 2GB, headroom ~20% | The day Debezium (JVM, ~1GB+ baseline) joins an already-full host |
-| k3s single VM sized like "just an app server" | Pods `Pending`; kubelet `MemoryPressure` evictions | k3s server + Traefik + CoreDNS + ArgoCD (repo-server spikes during syncs) eat ~2–4GB before any app; size VM ≥8GB min, 16GB comfortable; disable unused bundled bits (e.g. `--disable traefik` only if replacing it — otherwise keep defaults) | ~5–10 T3 apps with default Node memory footprints |
-| ArgoCD polling many app repos every 3 min | repo-server CPU spikes; sync lag | Monorepo for GitOps manifests (one repo to poll) + webhook from GitHub instead of polling | Dozens of Applications each pointing at separate repos |
-| ZFS/storage on single NVMe with DB WAL + JetStream + k3s images | I/O latency spikes; etcd/sqlite (k3s) timeouts | Separate the noisy writers if possible (second NVMe in MS-01); at minimum monitor iowait; keep JetStream off any network storage | Debezium snapshot of a large table concurrent with image pulls |
-| Every request hopping NPM → Traefik → pod with TLS at both hops | Noticeable latency, double CPU for TLS | Terminate TLS once at NPM; HTTP over LAN to ingress (documented decision) | Not a v1 problem; matters with websocket-heavy apps |
+**Prevention:** Generate structured commit messages listing service name, changed manifest files, env keys added/updated, secret keys added/updated without values, and whether rollout annotations changed.
 
-## Security Mistakes
+**Phase to address:** GitOps commit flow.
 
-Domain-specific security issues beyond general web security.
+### Pitfall 15: Existing-service detection chooses the wrong service
 
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| ArgoCD / NPM admin (:81) / Proxmox / Traefik dashboard reachable via the public path | Full platform compromise from one scanned CVE or brute-forced login | Admin surfaces LAN/VPN-only; public path is an explicit allowlist at the CHR/NPM; verify from cellular after every public-exposure change |
-| `public: true` apps shipped without auth | Data exposure; app becomes a bot playground | Scaffold makes auth a required field for public apps (own auth or Zitadel-backed SSO gate) |
-| Cloudflare API token with account-wide or Global Key powers stored in-cluster | Token theft = full DNS takeover (and cert issuance) for the domain | Zone-scoped token (Pitfall/Integration above); stored via the bootstrap secret path; rotate if ever pasted anywhere |
-| Mikrotik with `allow-remote-requests=yes` and no WAN input filter on :53 | Open resolver — DDoS amplification participant; ISP abuse reports | WAN input chain drops UDP/TCP 53 (both home router and AWS CHR) |
-| GHCR PAT with `write:packages` (or `repo`) used as the cluster pull secret | Leaked kubeconfig/secret = attacker can push images your cluster will run | Pull secret uses a read-only token (`read:packages` only); write tokens live only in GitHub Actions |
-| Secrets committed plaintext "temporarily" during bootstrap | Git history is forever; GHCR/Cloudflare/DB creds leaked on repo publication | SOPS/sealed-secrets from commit #1; pre-commit secret scanner (gitleaks) in the GitOps repo |
-| Trusting `X-Forwarded-For` from any source at the ingress | IP-based allowlists/rate limits spoofable by any client setting the header | Ingress trusts XFF only from NPM's IP; NPM overwrites (not appends) client-supplied XFF at the edge |
-| AWS CHR dst-NAT'ing broad port ranges home | Home LAN becomes internet-adjacent; lateral movement path | Tunnel (WireGuard) + explicit per-service forwards; CHR firewall default-drop; keep CHR RouterOS patched (public-facing Mikrotiks are heavily targeted) |
+**What goes wrong:** The CLI updates `fintrack` when the operator meant `fintrack-worker`, or updates a fork/staging path.
 
-## UX Pitfalls
+**Prevention:** Match by explicit service metadata and require confirmation when multiple candidates share names, repos, images, hosts, or labels.
 
-"User" here = the solo operator using the platform in six months, having forgotten everything.
+**Phase to address:** Existing-service discovery/update core.
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| Scaffold generates files but doesn't say what happens next | Operator stares at repo wondering why app isn't live | Scaffold ends with a printed checklist: what was created, what URL to watch (ArgoCD app), expected time-to-live |
-| Silent multi-system failure (DNS created, NPM failed, cert pending) | "It's broken" with 4 systems to check by hand | Scaffold (or a `status` subcommand) verifies each link: DNS resolves → NPM host exists → cert Ready → ingress 200 |
-| No teardown path | Dead apps accumulate DNS entries, NPM hosts, certs, namespaces | `scaffold destroy` (or documented delete ritual) from day one — reverse of create, including Mikrotik/NPM cleanup |
-| Naming drift (`myapp` vs `my-app` vs repo name) across DNS/NPM/k8s/GHCR | Debugging requires a mental mapping table | Scaffold derives ALL names from one slug; validation rejects non-conforming names |
-| Bootstrap knowledge lives in shell history | Rebuild after failure = archaeology | `bootstrap.sh` + a RUNBOOK.md maintained as part of P-GitOps, tested by an actual rebuild |
+## Phase-Specific Warnings
 
-## "Looks Done But Isn't" Checklist
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|----------------|------------|
+| CLI binary install/runtime | Ambiguous GitOps repo, branch, or working directory | Install-time config; runtime repo/branch/root validation; explicit target summary |
+| Dockerfile-first detection | Overwriting intentional Dockerfile behavior | Never overwrite existing Dockerfile; separate detection, generation, and service update |
+| Dockerfile generation | Generated image does not match Kubernetes port/env/start command | Show detected port/start command; require build verification before GitOps commit |
+| Existing-service discovery | Wrong service selected | Match by metadata; handle duplicates with explicit selection |
+| Existing-service update | Non-idempotent YAML churn | Structural patching; second-run no-diff tests; render diff before commit |
+| Non-secret env vars | Invalid names or sensitive values stored as cleartext | Kubernetes env-name validation; likely-secret classifier and confirmation |
+| SOPS secret updates | Plaintext leakage or wrong recipients | Hidden input/stdin; SOPS set operations; repo-root `.sops.yaml` validation; decryptability check |
+| GitOps commit | Partial invalid commit reconciled by Argo CD | Clean worktree requirement; staged-file allowlist; render/SOPS/schema checks before commit |
+| Reconciliation check | Argo CD reports Synced but app still uses old env | Rollout checksum annotation; verify new ReplicaSet/pod start after env/secret changes |
 
-- [ ] **cert-manager:** Cert shows Ready — verify it *renews*: check the ClusterIssuer works with recursive-nameserver flags, not a hand-issued cert imported into NPM.
-- [ ] **Websockets through both proxies:** Page loads fine — verify a live websocket (tRPC subscription / `wscat`) stays up >60s through NPM → ingress.
-- [ ] **Uploads:** Small POSTs work — verify a 10MB+ upload passes both proxy layers (413 is the failure mode).
-- [ ] **GitOps rebuild:** ArgoCD syncs — verify by destroying and re-bootstrapping the k3s VM once; time it. "Disposable cluster" is a claim until tested.
-- [ ] **Backups:** Dump job runs — verify a restore into a scratch LXC actually produces a working database, and the dump exists off the MS-01.
-- [ ] **Debezium:** Events flow — verify the slot advances during a 24h idle period (heartbeat working) and check `pg_replication_slots` lag.
-- [ ] **Split DNS:** Works on your laptop — verify from a phone on WiFi (uses DHCP DNS?), a DoH-enabled browser, and cellular (public path or NXDOMAIN as intended).
-- [ ] **Public exposure:** App reachable — verify what *else* is reachable: scan the CHR public IP from outside; confirm admin UIs time out.
-- [ ] **Pull secrets:** First deploy works — verify a fresh namespace + brand-new private image pulls (tests the secret, not the node's image cache).
-- [ ] **k3s reboot:** Cluster runs — verify the whole MS-01 survives a power cycle: LXC start order (Postgres before Debezium/apps), k3s VM autostart, NPM up before cert renewals.
+## Recommended Prevention Strategy
 
-## Recovery Strategies
-
-When pitfalls occur despite prevention, how to recover.
-
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| WAL disk full (Debezium slot) | MEDIUM | Free space (delete non-WAL files/extend disk) → restart Postgres → `pg_drop_replication_slot` if slot invalidated → fix heartbeat/`max_slot_wal_keep_size` → Debezium re-snapshot |
-| Sealed-secrets key lost | HIGH | No decryption possible: re-create every secret from the upstream sources (password manager, provider dashboards), re-seal all. Prevent: key backup at install |
-| ArgoCD pruned the platform (bad commit) | MEDIUM | Revert the git commit → re-apply root app from bootstrap script → resync. State (LXCs) is untouched by design — this is why state-outside-k3s pays off |
-| Cert issuance broken (token/propagation) | LOW | Apps stay up on existing certs ~30–60 days; fix token scopes / recursive-nameserver flags; `cmctl renew` to force |
-| Postgres LXC corrupted / host disk dies | HIGH | Restore latest logical dump into fresh LXC (this is why dumps must live off-host); re-point DNS entry; re-create Debezium slots/connectors; accept data loss since last dump |
-| Admin UI found exposed | MEDIUM | Remove forward rule at CHR/NPM immediately → rotate that service's credentials/sessions → audit access logs → add the external-scan verification step |
-| GHCR pull secret expired mid-incident | LOW | Regenerate PAT → update the one shared secret → `kubectl rollout restart` affected deploys; add expiry reminder |
-
-## Pitfall-to-Phase Mapping
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| 1. DNS-01 self-check vs split DNS | P-Ingress | Issue a test cert end-to-end with split DNS active; check Challenge events clean |
-| 2. Debezium WAL bloat | P-Services | 24h idle-slot lag check; `max_slot_wal_keep_size` set; runbook entry exists |
-| 3. Bootstrap chicken-and-egg | P-GitOps | Rebuild k3s VM from `bootstrap.sh` only; zero interactive `kubectl create secret` |
-| 4. Double-proxy websockets/uploads/headers | P-Ingress + P-Scaffold | Smoke test: websocket >60s, 10MB upload, client IP visible in app logs |
-| 5. Snapshot-only Postgres backups | P-Services (decision) / P-Ops (implementation) | Restore drill from an off-host dump into scratch LXC |
-| 6. Mikrotik regexp DNS shadowing | P-Ingress | Resolution matrix test: local host, public host, non-existent host — from LAN, DoH browser, cellular |
-| 7. GHCR pull secret scope/expiry | P-Scaffold | Fresh-namespace private-image pull test; documented token scope + expiry policy |
-| 8. ArgoCD prune/finalizer cascade | P-GitOps | Sync-policy tiers documented; simulate a "deleted directory" commit against a leaf app only |
-| 9. Public exposure of admin/no-auth apps | P-Public | External port/vhost scan from off-network; scaffold refuses `public: true` without auth choice |
-| 10. LXC OOM / JetStream defaults | P-Services | Written RAM/disk budget for the MS-01; each LXC config sets memory/`store_dir`/`max_store`/`maxmemory` explicitly |
-| 11. Over-engineering | Roadmap construction | Every phase's exit criterion references progress toward the v1 gate app |
+1. Build the update flow as `plan -> apply files -> validate -> commit -> observe`, not as direct file edits.
+2. Use structural YAML/Kubernetes patching and preserve unknown fields.
+3. Define owned surfaces: env var entries, secret key references, generated Dockerfile marker, rollout checksum annotation, and commit metadata.
+4. Treat SOPS as a security subsystem: controlled working directory, no plaintext args, no in-place decrypt, encrypted-value validation, decryptability check.
+5. Make idempotency a test requirement for every update command.
+6. Validate rendered manifests before Git commit and compare object sets to catch accidental deletes.
+7. Verify reconciliation after commit: Argo CD sync status, app health, and rollout status when env/secret inputs changed.
 
 ## Sources
 
-- cert-manager docs — [Cloudflare DNS-01](https://cert-manager.io/docs/configuration/acme/dns01/cloudflare/), [DNS-01 recursive nameservers](https://cert-manager.io/docs/configuration/acme/dns01/); issues [#6572](https://github.com/cert-manager/cert-manager/issues/6572), [#3234](https://github.com/cert-manager/cert-manager/issues/3234), [#5917](https://github.com/cert-manager/cert-manager/issues/5917), [#4624](https://github.com/cert-manager/cert-manager/issues/4624) — MEDIUM confidence (official docs + reproduced issues)
-- Nginx Proxy Manager issues — [#1556 X-Forwarded headers](https://github.com/NginxProxyManager/nginx-proxy-manager/issues/1556), [#5216 SSL redirect in proxy chains](https://github.com/NginxProxyManager/nginx-proxy-manager/issues/5216), [#5374 XFF/Real-IP for ACLs](https://github.com/NginxProxyManager/nginx-proxy-manager/issues/5374); [Authelia discussion #4627](https://github.com/authelia/authelia/discussions/4627) — MEDIUM
-- MikroTik — [RouterOS DNS docs](https://help.mikrotik.com/docs/spaces/ROS/pages/37748767/DNS) (regexp escaping, lowercase, performance; allow-remote-requests), [forum: wildcard DNS](https://forum.mikrotik.com/viewtopic.php?t=167949), [forum: hairpin NAT](https://forum.mikrotik.com/viewtopic.php?t=180446) — MEDIUM
-- ArgoCD — [Secret Management docs](https://argo-cd.readthedocs.io/en/stable/operator-manual/secret-management/), [Octopus: finalizer pitfalls](https://octopus.com/blog/argocd-application-deletion-finalizers), [Codefresh: finalizers](https://codefresh.io/blog/argocd-application-deletion-finalizers/), [app-of-apps deletion discussion #12209](https://github.com/argoproj/argo-cd/discussions/12209), [ArgoCD managing itself](https://sofianedjerbi.com/en/blog/argocd-manage-itself/), [SOPS+age with sealed-secrets bootstrap](https://www.jonashietala.se/blog/2026/05/31/sops_age_and_sealed_secrets/) — MEDIUM
-- GHCR — [rate limits discussion #49671](https://github.com/orgs/community/discussions/49671), [pull secrets discussion #160722](https://github.com/orgs/community/discussions/160722), [GHCR with Kubernetes](https://dev.to/asizikov/using-github-container-registry-with-kubernetes-38fb), [GHCR traffic/spending limits](https://blog.cloud-eng.nl/2023/01/23/ghcr-acr-traffic/) — MEDIUM
-- Postgres/Proxmox — [Proxmox forum: snapshot consistency](https://forum.proxmox.com/threads/considerations-regarding-snapshot-backup-consistency.1000/), [pct docs](https://pve.proxmox.com/pve-docs/chapter-pct.html), [Postgres on dedicated LXC](https://metasora.com/blog/postgres-dedicated-lxc-docker/), [LXC resource limits/OOM](https://proxmoxpulse.com/articles/proxmox-lxc-resource-limits/) — MEDIUM
-- Debezium/Postgres CDC — [Debezium Postgres connector docs](https://debezium.io/documentation/reference/stable/connectors/postgresql.html), [Morling: insatiable replication slot](https://www.morling.dev/blog/insatiable-postgres-replication-slot/), [Morling: mastering replication slots](https://www.morling.dev/blog/mastering-postgres-replication-slots/), [Zalando: fixing logical replication at scale](https://engineering.zalando.com/posts/2025/12/contributing-to-debezium.html), [Streamkap: slot issues](https://streamkap.com/resources-and-guides/debezium-replication-slot-issues) — MEDIUM (multiple independent authoritative sources)
-- NATS — [JetStream docs](https://docs.nats.io/nats-concepts/jetstream), [server configuration](https://docs.nats.io/running-a-nats-service/configuration), [Synadia: storage exhaustion](https://www.synadia.com/insights/checks/nats-jetstream-storage-utilization-critical), [Synadia: memory streams](https://www.synadia.com/insights/checks/nats-memory-storage-large-stream) — MEDIUM
-- Homelab exposure — [HomelabAddiction security guide](https://homelabaddiction.com/homelab-security/), [readthemanual: zero-trust before going public](https://readthemanual.co.uk/secure-your-homelab-2025/) — LOW-MEDIUM (community guidance, consistent across sources)
+- Argo CD official docs: automated sync lets pipelines commit to the Git tracking repo instead of calling Argo CD directly; pruning is disabled by default as a safety mechanism; self-heal/prune/allow-empty alter reconciliation behavior. <https://argo-cd.readthedocs.io/en/stable/user-guide/auto_sync/>
+- Argo CD official docs: sync options include no-prune, prune confirmation, prune-last, server-side apply, and shared-resource protections; these options affect deletion and ownership behavior. <https://argo-cd.readthedocs.io/en/latest/user-guide/sync-options/>
+- SOPS official docs: supports YAML/JSON/ENV/INI tree encryption, age recipients, `.sops.yaml` creation rules, `set`/`unset`, `--value-stdin`, and encrypted regex for Kubernetes `data`/`stringData`. <https://getsops.io/docs/>
+- SOPS official docs, age identities and config file behavior: age key lookup paths, recipient rules, `updatekeys`, and `.sops.yaml` rule selection. <https://getsops.io/docs/usage/identities/age/> and <https://getsops.io/docs/usage/identities/config-file/>
+- SOPS official docs, common operations/security: in-place encrypt/decrypt behavior, tree path edits, cleartext diff support, and security model. <https://getsops.io/docs/usage/common-operations/> and <https://getsops.io/docs/security/>
+- Kubernetes official docs: Secrets can be edited unless immutable; immutable Secrets/ConfigMaps cannot be mutated and require delete/recreate plus pod recreation; broad list/watch Secret permissions expose namespace secret data. <https://kubernetes.io/docs/concepts/configuration/secret/>
+- Kubernetes official docs: ConfigMap keys used as env vars must satisfy env-var naming restrictions; immutable ConfigMaps cannot be mutated. <https://kubernetes.io/docs/concepts/configuration/configmap/>
+- Kubernetes official docs: Kustomize generators create ConfigMaps/Secrets from files/env/literals and add hash-suffixed generated names in rendered output. <https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/>
 
----
-*Pitfalls research for: GitOps homelab deployment platform (k3s/Proxmox/NPM/Mikrotik/Cloudflare)*
-*Researched: 2026-07-07*
+## Confidence Assessment
+
+| Area | Confidence | Notes |
+|------|------------|-------|
+| SOPS secret handling | MEDIUM | Based on official SOPS docs; exact implementation risk depends on current scaffolder code. |
+| GitOps reconciliation | MEDIUM | Based on official Argo CD docs and established GitOps patterns; local sync policy must be inspected during implementation. |
+| Kubernetes env/secret rollout | MEDIUM | Based on official Kubernetes docs; rollout mechanism depends on the repo's manifest style. |
+| Kustomize/idempotency | MEDIUM | Based on official Kubernetes/Kustomize docs; risk depends on whether existing services use generators, patches, or plain manifests. |
+
+## Implications for Roadmap
+
+- Put **CLI runtime context validation** before update features. A binary that can run from anywhere must first prove it knows the app repo, GitOps repo, branch, service path, and Argo-watched target.
+- Put **existing-service discovery and idempotent patching** before env/secret update UX. Secret updates are unsafe until the scaffolder can patch existing manifests without unrelated churn.
+- Put **SOPS update flow** in its own phase or protected subphase with explicit security tests.
+- Put **GitOps commit and reconciliation verification** after file mutation works but before considering the milestone done. The acceptance test should include a real existing service update, a no-op second run, and an Argo CD health/sync check.

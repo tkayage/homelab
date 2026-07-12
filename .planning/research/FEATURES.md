@@ -1,175 +1,200 @@
-# Feature Research
+# Feature Research: v1.1 Scaffolder CLI Service
 
-**Domain:** GitOps-based homelab deployment platform (solo-operator internal developer platform: k3s on Proxmox, per-app DNS/proxy/TLS, shared stateful LXC services)
-**Researched:** 2026-07-07
-**Confidence:** MEDIUM (community consensus from reference homelab repos, vendor docs, and practitioner blogs; verified across multiple independent sources — no single authoritative spec for this domain exists)
+**Domain:** Operator-facing CLI for GitOps-managed homelab service onboarding and updates  
+**Researched:** 2026-07-12  
+**Confidence:** MEDIUM-HIGH for local project fit; MEDIUM for external ecosystem norms
 
-## Feature Landscape
+## Scope
 
-Reference class: public k3s+ArgoCD homelab repos (cterence/homelab-gitops, loeken/homelab, pablodelarco/kubernetes-homelab, adavarski/homelab), self-hosted PaaS products (Coolify, Dokploy, CapRover), and GitOps vendor guidance (Argo CD docs, Codefresh/Octopus environment-modeling guides). The consistent bar users measure against is "Heroku-at-home": push code, get a URL with valid TLS.
+This artifact focuses only on the new v1.1 capabilities:
 
-### Table Stakes (Users Expect These)
+- Install and run the scaffolder as a dev-server CLI binary.
+- Move from T3-first detection to Dockerfile-first detection.
+- Offer explicit Dockerfile generation when missing.
+- Update existing GitOps-managed services.
+- Add/update non-secret env vars and encrypted runtime secrets for existing services.
+- Commit changes through the existing GitOps repository flow.
 
-Missing any of these and the platform fails its own core value ("push to git → app is live, no manual wiring").
+Existing v1.0 features are treated as dependencies, not as features to redesign: GHCR pipeline generation, GitOps app manifests, local/private exposure, explicit public opt-in, T3/generic app support, and SOPS-encrypted secrets.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Git push → image build → deploy pipeline | The entire point; every comparable platform (Coolify, Dokploy, any GitOps repo) has this | MEDIUM | GitHub Actions builds → GHCR → tag written to GitOps repo (CI-writes-tag is the simplest closure of the loop; ArgoCD Image Updater is the alternative) |
-| GitOps engine with auto-sync, self-heal, prune | Standard ArgoCD/Flux posture in every reference homelab; without prune, deleted apps linger | LOW | Install + one AppProject/ApplicationSet config. Note: manual UI rollback is blocked while auto-sync is on — rollback story is "git revert" (see below) |
-| Automatic valid TLS per app | "Valid cert without opening ports" is a solved problem (cert-manager or NPM native, both via Cloudflare DNS-01); browser warnings = platform feels broken | LOW–MEDIUM | A **wildcard cert** (`*.domain.com`) issued once via DNS-01 collapses per-app cert issuance to zero work. Decide cert termination point (NPM vs k3s ingress) early — doing both is redundant |
-| Automatic hostname + reverse proxy wiring per app | The Kubernetes-standard contract is "add an Ingress, get a URL" (ExternalDNS + ingress annotations); users expect zero manual router/NPM clicks per app | MEDIUM | **Key simplification:** one wildcard static DNS entry on Mikrotik (`*.domain.com` → NPM) + one wildcard NPM proxy host → k3s ingress routes by Host header. This reduces per-app wiring to "scaffold emits an Ingress manifest" — no Mikrotik/NPM API automation needed at all. Per-app API automation (RouterOS API + NPM REST API) is the fallback if wildcards are rejected |
-| One-command app scaffolding | Per PROJECT.md this is the only allowed per-project manual step; comparable to `coolify` app creation or Backstage templates | MEDIUM | CLI renders Dockerfile/CI workflow into the app repo + manifests folder into the GitOps repo. ApplicationSet **git directory generator** means dropping the folder in = registered; no per-app Application resource to manage |
-| Secrets safely in git | Can't scaffold a T3 app without DATABASE_URL/AUTH_SECRET; plaintext in git is disqualifying | MEDIUM | SOPS+age or External Secrets Operator fit the "disposable cluster" decision better than Sealed Secrets (whose decryption key lives *in* the cluster — lose cluster, lose secrets). Blocks: GHCR pull secret, Cloudflare token, DB creds |
-| Health checks + safe rollback path | ArgoCD health status is built in; users expect a failed deploy to be visible and revertible | LOW | Scaffold must emit readiness/liveness probes or ArgoCD reports Healthy on broken apps. Rollback = `git revert` + auto-sync; document this, don't build machinery |
-| Deployment visibility (ArgoCD UI) | Comes free with ArgoCD; every reference repo exposes it | LOW | ArgoCD UI itself should be the first "app" wired through the DNS/proxy/TLS path — it dogfoods the platform |
-| Apps reach shared LXC services | Active requirement; a platform where apps can't reach Postgres is dead | LOW | LAN routing + per-app connection Secret. Convention: service DNS names resolvable from cluster (CoreDNS custom entries or Mikrotik DNS) |
-| GHCR image pull | Chosen registry; private images need pull secrets in each app namespace | LOW | Scaffold or a cluster-wide secret replicator handles this; depends on secrets management |
+## Operator Model
 
-### Differentiators (Competitive Advantage)
+The operator should experience the scaffolder as a small, predictable dev-server command:
 
-Aligned with the core value: reducing per-app marginal effort toward zero. These are what make this *a platform* rather than *a cluster with apps on it*.
+```bash
+scaffold init [--slug app] [--port 3000] [--dockerfile Dockerfile]
+scaffold update <slug> [--set KEY=value] [--secret KEY=value|--secret-file KEY=path]
+scaffold diff <slug>
+scaffold doctor
+```
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Per-app DB/user provisioning in shared Postgres | Heroku-grade DX: scaffold flag → database + role + credentials Secret exist; removes the last manual step for T3 apps | MEDIUM | movetokube/postgres-operator is purpose-built for **external** Postgres (CRDs create db+user on the LXC server, emit a k8s Secret). Alternative: scaffold-time psql script — simpler, no operator to run, but imperative. Operator keeps it declarative/GitOps-native |
-| Opt-in public exposure flag | `--public` at scaffold time → Cloudflare DNS record → AWS CHR path; local-first security by default with one-flag escape hatch | MEDIUM | Required (Active) in PROJECT.md but the *one-flag DX* is the differentiator vs manually adding a Cloudflare record. Cloudflare API call is trivial; CHR→NPM forwarding is one-time infra, not per-app |
-| Deployment notifications (push to phone/chat) | Solo operator isn't watching the ArgoCD UI; "your push is live" / "sync failed" closes the feedback loop | LOW | argocd-notifications → ntfy (homelab favorite, self-hosted, phone push) or Discord webhook. Very high value-to-effort ratio |
-| Homepage dashboard auto-discovery | gethomepage reads `gethomepage.dev/*` Ingress annotations — scaffolded apps appear on a service directory automatically, with pod status | LOW | Pure convention: scaffold template includes the annotations. Zero ongoing cost once the dashboard runs |
-| App decommissioning (`scaffold remove`) | Platforms accrete zombie apps; clean teardown (manifests, DNS record if public, DB archived, NPM host if non-wildcard) is almost always forgotten | LOW–MEDIUM | With prune enabled + wildcard DNS, teardown is mostly "delete the folder" — the tool just needs to also handle public DNS records and DB retirement |
-| Zitadel OIDC client auto-provisioning | `--auth` scaffold flag creates an OIDC client in Zitadel and injects client id/secret — auth becomes as zero-touch as DNS | MEDIUM–HIGH | Zitadel has a management API and Terraform provider. High wow-factor for T3 apps (NextAuth), but defer past v1 |
-| Renovate on the GitOps repo | Keeps platform Helm charts and app base images patched via PRs; the "maintenance autopilot" for a solo operator | LOW | Hosted Renovate app is free for GitHub; recommended over ArgoCD Image Updater for chart/dependency updates |
-| Staging overlay per app (opt-in) | Kustomize overlay + `myapp-staging.domain.com` for risky changes; folder-based promotion (copy tag from staging to prod dir) | MEDIUM | Only worth it as opt-in; solo homelabs overwhelmingly run single-env per app. Model environments as folders, not branches (Codefresh/Argo guidance) |
+The core UX rule: the CLI prepares and commits desired-state changes; it does not directly deploy, patch live Kubernetes objects, or bypass GitOps. Success means "a validated Git commit was pushed to the GitOps repo"; Argo CD remains responsible for reconciliation.
 
-### Anti-Features (Commonly Requested, Often Problematic)
+## Table Stakes
 
-The community failure mode is documented repeatedly: production-grade tooling turns a solo homelab into "a second job keeping the platform healthy." PROJECT.md's own Out of Scope list already reflects this; research confirms and extends it.
+Features users expect. Missing means the CLI feels unsafe, incomplete, or too manual.
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Multi-node HA / distributed storage (Longhorn, Ceph) | "Production-like", resume-driven | One physical MS-01 = zero real redundancy; distributed storage on one host is pure overhead and a top regret in homelab retrospectives | Single k3s VM; Proxmox snapshots; state in LXCs |
-| Velero + MinIO/S3 backup stack | "Kubernetes backup best practice" | Designed to protect in-cluster state — this design deliberately has none; MinIO alone is heavier than the problem | GitOps repo *is* the cluster backup (rebuild ≈ 30 min: k3s + ArgoCD + sync); Proxmox vzdump for LXCs + scheduled pg_dump for Postgres |
-| In-cluster DB operators (CloudNativePG) | Slick declarative DBs | Puts state back inside the disposable cluster, defeating the core architectural decision | Shared Postgres LXC + external-Postgres operator (movetokube) for per-app provisioning |
-| Backstage / full IDP portal | "Real platform engineering" | Backstage is a full-time product to run; absurd overhead for one developer | A scaffold CLI + gethomepage covers 100% of the solo-use surface |
-| Per-PR preview environments | Modern team DX (ApplicationSet PR generator) | Real infra + teardown management on a single node; benefits accrue to *reviewers*, and there are none | Run locally during dev; optional staging overlay later. Revisit only if collaboration starts |
-| Service mesh (Istio/Linkerd) | mTLS, observability buzz | Most-cited homelab overkill item; nothing here needs it | LAN + NetworkPolicies if isolation is ever needed |
-| Self-hosted container registry | Independence from GitHub | Another stateful service to run, back up, and secure; already ruled out | GHCR (free, integrated with Actions) |
-| Full observability stack (Prometheus/Grafana/Loki) at v1 | "You need monitoring" | Heavyweight before any app exists; already deferred in PROJECT.md | ArgoCD health + notifications + gethomepage status now; monitoring as its own later milestone |
-| Imperative deploy CLI (`platform deploy`) | Feels fast and direct | Splits the source of truth; drift between CLI state and git state is the classic GitOps failure | Git push is the only deploy verb; scaffold is the only CLI |
-| Per-app Mikrotik/NPM API automation (if wildcard works) | "Automate everything" | Building and maintaining custom API glue (RouterOS + NPM's semi-documented REST API) for a problem a single wildcard DNS entry + wildcard cert solves statically | Wildcard-first: `*.domain.com` → NPM → k3s ingress; per-app routing via Ingress Host rules. Only build API glue for the opt-in public path (Cloudflare) |
+| Feature | Why Expected | Complexity | Dependencies | Recommended Behavior |
+|---------|--------------|------------|--------------|----------------------|
+| Installable dev-server binary | v1.1 explicitly moves from source-only use to a normal operator command. | Low | Go build/release target; dev-server PATH convention; existing Cobra CLI. | Provide `make install-scaffold` or script that builds `scaffold` into a gitignored operator bin dir such as `.local/bin` or `$HOME/.local/bin`; `scaffold version` and `scaffold doctor` confirm the installed binary and required tools. |
+| Preflight/doctor command | Operators need failures before state changes, not halfway through SOPS or git push. | Low | Existing preflight for `git`, `sops`, `kustomize`; GitOps repo credentials; SOPS age key; GHCR token path. | `scaffold doctor` checks binary version, PATH tools, app repo cleanliness, GitOps worktree sync, GitHub token env, age recipient/key, and ability to run `kustomize build` on a temp app. |
+| Dockerfile-first detection | The platform goal is "anything containerizable"; T3 is only one app type. | Medium | Existing detect package; Dockerfile parser; app repo root detection; port resolution. | Detection order should be: explicit `--dockerfile`, root `Dockerfile`, then "missing Dockerfile" prompt. T3 detection becomes a template hint only when generating a Dockerfile, not the primary classification. |
+| Existing Dockerfile read-only validation | Dockerfile is application-owned build logic. Silent rewrites destroy trust. | Low-Medium | Existing SCAF-06 preservation tests; Dockerfile parser. | Inspect for `EXPOSE`, non-root `USER`, and obvious container port; warn but do not mutate. If `EXPOSE` is missing, require `--port` or an interactive answer. |
+| Explicit Dockerfile generation when missing | Operator should not leave the tool to hand-write boilerplate, but generation must be opt-in. | Medium | Template system; language/framework hints; app repo write permissions. | On missing Dockerfile, offer: generate a recommended Dockerfile, abort, or continue only with `--dockerfile`. Generated Dockerfile must be shown in diff and committed to the app repo by the operator, not hidden in GitOps. |
+| Clear generated Dockerfile ownership | Generated build files need future maintenance by the app repo owner. | Low | App repo git checks. | After generation, print that the Dockerfile is now app-owned and will not be overwritten by future scaffold runs unless an explicit `--replace-dockerfile` feature is later added. |
+| Existing service discovery by slug | Updating env/secrets requires finding exactly one service folder. | Medium | GitOps repo worktree; `apps/<slug>/` convention; ApplicationSet directory generator. | `scaffold update fintrack` resolves `apps/fintrack`; refuse if missing, duplicated, or not recognized as scaffold-managed unless `--adopt` is explicitly implemented later. |
+| Update mode separate from init mode | New-service onboarding and existing-service edits have different risk profiles. | Low | Cobra subcommands; existing scaffolder orchestration. | Use distinct commands (`init`, `update`, `diff`, `doctor`). Bare `scaffold` may alias `init` for backward compatibility, but update flows should be explicit. |
+| Non-secret env var updates | Runtime config often changes after onboarding; hand-editing YAML is the current pain. | Medium | Deployment manifest shape; ConfigMap or direct env convention; kustomize validation. | Store non-secret env in a predictable manifest, preferably `configmap.yaml` consumed by `envFrom` or explicit `env` entries. `--set KEY=value` updates or adds keys idempotently and prints added/changed/unchanged. |
+| Secret updates through SOPS | The fintrack runbook shows runtime secret updates are manual and error-prone. | High | SOPS age key; Argo CD SOPS CMP; plaintext temp dir discipline; `*.enc.yaml` convention. | `--secret KEY=value` and `--secret-file KEY=path` decrypt existing secret if present, merge keys, encrypt to `runtime-secret.enc.yaml`, delete plaintext temp files, and refuse to stage plaintext. |
+| Key-level diff that redacts secret values | Operators need confidence about what changed without leaking credentials. | Medium | YAML parser; secret merge logic; diff renderer. | Show non-secret values normally; show secret changes as `KEY: added`, `KEY: changed`, `KEY: removed`, or `unchanged`, never the value. |
+| Idempotent reruns | CLI scaffolding will be rerun during debugging; duplicate env entries or noisy commits are unacceptable. | Medium | Structured YAML edits; stable sorting; staged-change detection. | Re-running the same update produces no changes and exits cleanly with "already up to date"; no empty commit. |
+| Dry-run/diff before commit | GitOps makes commits durable; operator needs a preview. | Medium | Git worktree diff; SOPS redaction; app repo diff for Dockerfile generation. | `--dry-run` performs detection, merge, render, decrypt/encrypt round-trip where needed, validation, and prints a redacted summary without committing or pushing. |
+| Local validation before GitOps commit | Broken YAML should never be pushed for Argo to reject. | Medium | Existing `kustomize`, `kubectl --dry-run` verifier, actionlint for workflow changes. | Before commit, run `kustomize build apps/<slug>` with decrypted SOPS temp output where applicable and fail before staging on invalid output. |
+| Normal GitOps commit flow | Existing platform decision: GitOps is the deployment interface. | Medium | Existing `gitops.Publish` clone/sync/commit/push code; GitHub token env. | Sync GitOps worktree to `origin/main`, apply changes, stage only `apps/<slug>` encrypted/config files, commit with specific messages, push `main`. Rollback remains `git revert`. |
+| Safe git worktree handling | The CLI operates across an app repo and GitOps repo; dirty state can lose work. | Medium | Git status checks; existing git wrapper. | Refuse to operate on dirty app repo when generating Dockerfile/workflow; refuse dirty GitOps worktree unless dirty files are exactly the service being updated and the operator confirms or uses `--allow-dirty-service`. |
+| Machine-readable and human-readable output | Solo operator benefits from concise output today and scriptability later. | Low | Report package. | Default output is a short report; `--json` emits slug, command, changed files, changed keys, commit SHA, and validation status. |
+
+## Differentiators
+
+Features that are not strictly required, but would make this feel like a purpose-built homelab platform rather than a YAML helper.
+
+| Feature | Value Proposition | Complexity | Dependencies | Recommendation |
+|---------|-------------------|------------|--------------|----------------|
+| Interactive guided update flow | Reduces cognitive load for occasional operations. | Medium | TTY detection; prompt library or simple stdin prompts. | In TTY mode, let operator select existing service, choose env vs secret, paste values, review redacted diff, then commit. Keep flags as the canonical automatable path. |
+| Runtime config import from env file | Mirrors how fintrack already stores operator-private config. | Medium | Env-file parser; secret classification; validation rules. | Support `--env-file path --as nonsecret|secret|split`. For split mode, classify keys by explicit prefix or prompt; never guess silently for credential-shaped names. |
+| Secret value source flexibility | Avoids leaking secrets into shell history. | Medium | Secure prompt; file reads; stdin. | Support `--secret KEY` prompting hidden input, `--secret-file KEY=path`, and `--secret-stdin KEY`. Warn against `--secret KEY=value` in interactive shells but allow for scripts if needed. |
+| Managed service marker | Makes update/adoption decisions safer. | Low | Manifest labels/annotations. | Add `homelab.kayage.co/managed-by: scaffold` and `homelab.kayage.co/scaffold-version` to generated resources; update mode can refuse unmanaged folders by default. |
+| Config schema hints | Prevents typos in required runtime keys for known services. | Medium | Optional per-service metadata file. | Allow `apps/<slug>/scaffold.yaml` to declare expected env and secret keys, required/optional status, and restart sensitivity. Start with optional metadata; do not require it for generic apps. |
+| Redacted rollback hints | Closes the loop after commit without becoming a deploy tool. | Low | Commit SHA; Argo app name convention. | After push, print `git -C <gitops> revert <sha>` and `kubectl -n argocd get application <slug>` commands. Keep it informational. |
+| Dockerfile template profiles | Generates better defaults without reintroducing T3 lock-in. | Medium | Template catalog; detection hints. | Offer profiles such as `node-standalone`, `static-nginx`, `go-binary`, and `generic`. Auto-suggest, but require explicit acceptance. |
+| Port inference explanation | Operators need to know why a Service targetPort changed. | Low | Dockerfile parser; report package. | Report whether port came from `--port`, `EXPOSE`, T3 default, or prompt. This is useful when debugging ingress/service mismatch. |
+| Adopt existing GitOps service | Lets the tool help with manually-created services later. | High | Manifest normalization; ownership markers; conflict detection. | Defer unless needed. If built, require an explicit `scaffold adopt <slug>` that validates expected file layout and adds management metadata in a separate commit. |
+
+## Anti-Features
+
+Features to explicitly not build for this milestone.
+
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Imperative live Kubernetes patching | It splits source of truth and conflicts with the platform's GitOps contract. | Write/commit desired state; let Argo CD reconcile. |
+| Silent Dockerfile overwrite | Existing Dockerfiles are application-owned and may encode non-obvious build requirements. | Read-only inspect existing Dockerfiles; generate only when missing and accepted. |
+| T3-only detection path | v1.1 is explicitly Dockerfile-first and app-agnostic. | Treat T3 as a Dockerfile generation/profile hint, not as the primary app kind. |
+| Secret values in CLI output, git diff, logs, or commit messages | Leaks credentials into terminal scrollback, CI logs, shell history, and git metadata. | Redact values everywhere; report key-level actions only. |
+| Plaintext secret files in the GitOps worktree | Easy to accidentally stage; existing project already forbids this. | Use private temp dirs, encrypt immediately, delete plaintext, and hard-fail if `*.yaml` plaintext secret files are staged. |
+| Automatic secret classification by key name only | False negatives leak secrets; false positives create confusing runtime config. | Use explicit flags (`--set` vs `--secret`) and optionally warn on credential-shaped keys passed as non-secret. |
+| A web UI or dashboard for updates | Too much surface for a solo operator milestone. | CLI with good reports, dry-run, and doctor. |
+| PR-based approval workflow | Useful for teams, unnecessary friction for a one-person homelab. | Direct commit/push to GitOps `main`, preserving rollback by git revert. |
+| Replacing SOPS with a new secret backend | SOPS is already validated in the platform and Argo CD flow. | Extend the current SOPS workflow for runtime secrets. |
+| Full Dockerfile lint/refactor system | Dockerfile quality automation can sprawl quickly. | Warn on a small set of deployment-critical checks: port and non-root user. Defer hadolint integration. |
+| Managing app runtime databases in this milestone | Env/secrets update may carry DB URLs, but DB provisioning is a separate platform feature. | Accept supplied connection values; do not create databases/users yet. |
+| Public exposure changes bundled into env updates | Public/private routing is already a sensitive, explicit opt-in feature. | Keep exposure changes as a separate command/flag with clear confirmation. |
 
 ## Feature Dependencies
 
+```text
+Installable CLI binary
+  -> existing Go/Cobra scaffold module
+  -> dev-server PATH convention
+  -> version/doctor reporting
+
+Dockerfile-first init
+  -> app repo git root detection
+  -> Dockerfile parser
+  -> app repo file rendering
+  -> existing workflow/GHCR templates
+  -> existing GitOps manifest publisher
+
+Existing service update
+  -> GitOps repo clone/sync/commit/push
+  -> apps/<slug>/ folder convention
+  -> scaffold-managed metadata or conservative layout detection
+  -> kustomize validation
+
+Non-secret env updates
+  -> stable ConfigMap/env manifest convention
+  -> Deployment consumes ConfigMap/env entries
+  -> structured YAML edits
+
+Encrypted secret updates
+  -> SOPS age key available on dev server
+  -> Argo CD SOPS CMP already deployed
+  -> runtime-secret.enc.yaml convention
+  -> plaintext temp-file cleanup and staged plaintext guard
+
+Rollback/recovery UX
+  -> Git commit SHA from update
+  -> existing GitOps rollback practice: git revert
+  -> Argo CD application naming convention
 ```
-[Scaffolding CLI]
-    └──requires──> [GitOps engine + ApplicationSet directory generator]
-    └──requires──> [Manifest templates (Deployment/Service/Ingress/probes)]
-    └──requires──> [Secrets management]          (DB creds, app env)
-    └──requires──> [CI pipeline template → GHCR]
 
-[Automatic hostname/proxy/TLS per app]
-    └──requires──> [Wildcard DNS on Mikrotik + wildcard NPM proxy host + wildcard cert (DNS-01)]   (one-time)
-    └──requires──> [k3s ingress controller routing by Host]
+## MVP Recommendation
 
-[Per-app DB provisioning] ──requires──> [Postgres LXC] and [Secrets management]
-[Opt-in public exposure] ──requires──> [Local exposure path working] and [Cloudflare API token] and [AWS CHR → NPM forwarding (one-time)]
-[GHCR private pulls] ──requires──> [Secrets management]
+Prioritize:
 
-[Deployment notifications] ──enhances──> [GitOps engine]
-[Homepage auto-discovery] ──enhances──> [Scaffolding CLI]   (annotations baked into Ingress template)
-[App decommissioning] ──enhances──> [Scaffolding CLI]       (requires prune enabled)
-[Zitadel OIDC provisioning] ──enhances──> [Scaffolding CLI]
-[Staging overlays] ──enhances──> [Scaffolding CLI]
+1. **Binary install + doctor**: build/install command, `scaffold version`, `scaffold doctor`, and hard preflight before mutating anything.
+2. **Dockerfile-first init**: detect existing Dockerfile read-only, infer/report port, warn on missing non-root user, prompt/generate Dockerfile when missing, and preserve existing Dockerfiles byte-for-byte.
+3. **Update existing service config**: `scaffold update <slug> --set KEY=value` with idempotent structured YAML edits, redacted diff, kustomize validation, GitOps commit, and no empty commit.
+4. **Update existing service secrets**: `--secret`, `--secret-file`, encrypted merge into `runtime-secret.enc.yaml`, plaintext staging guard, redacted report, and GitOps commit.
+5. **Dry-run/diff**: available for both init and update before committing.
 
-[Velero backup] ──conflicts──> [State-outside-cluster decision]
-[Preview environments] ──conflicts──> [Single-node resource budget]
-[Imperative deploy CLI] ──conflicts──> [GitOps as sole deploy interface]
+Defer:
+
+- `scaffold adopt`: valuable but high-risk because unmanaged manifests may not match scaffold assumptions.
+- Dockerfile lint/refactor integrations: start with deployment-critical checks only.
+- PR workflows: unnecessary for the solo-operator GitOps flow.
+- Web UI: not needed for this milestone.
+- DB provisioning or Zitadel client provisioning: adjacent but outside the requested env/secrets update flow.
+
+## UX Recommendations
+
+### Command Shape
+
+Use explicit verbs:
+
+- `scaffold init`: onboard current app repo.
+- `scaffold update <slug>`: change desired state for an existing GitOps service.
+- `scaffold diff <slug>`: show current managed config and redacted secret metadata.
+- `scaffold doctor`: verify local operator prerequisites.
+
+Avoid overloading bare `scaffold` for update behavior. Backward-compatible bare `scaffold` can continue to mean `init`.
+
+### Update Report
+
+Every successful update should end with a compact report:
+
+```text
+Service: fintrack
+GitOps path: apps/fintrack
+Non-secret env: 2 added, 1 changed, 4 unchanged
+Secrets: 1 added, 2 changed, values redacted
+Validation: kustomize build OK, plaintext secret guard OK
+Commit: abc1234 deploy(fintrack): update runtime config
+Next: Argo CD will reconcile from GitOps; rollback with git revert abc1234
 ```
 
-### Dependency Notes
+### Error Style
 
-- **Scaffolding requires everything else first:** the CLI is the *last* thing to build well — it merely emits conventions that the platform (GitOps engine, ingress path, secrets) must already honor. Roadmap implication: platform rails before scaffold polish, but a crude scaffold (copy a template folder) works from day one via the ApplicationSet directory generator.
-- **Wildcard-first collapses the hardest table stake:** if Mikrotik wildcard static DNS + NPM wildcard host + wildcard cert are validated early (a one-day spike), "automatic DNS/proxy/TLS per app" drops from MEDIUM-complexity custom API automation to zero marginal work per app. This spike should happen before committing to any per-app API glue. (Caveat to verify: Mikrotik static DNS wildcard/regex entry behavior, and NPM wildcard host header pass-through — flagged for phase research, LOW confidence on specifics.)
-- **Secrets management is the bottleneck dependency:** GHCR pulls, Cloudflare tokens, DB credentials, and app env all block on it. It must land in the first platform phase. Sealed Secrets conflicts philosophically with the disposable-cluster decision (in-cluster private key); SOPS+age or ESO preserve rebuildability.
-- **DB provisioning depends on secrets *and* the Postgres LXC**, so it naturally sits a phase after both.
-- **Public exposure is additive**, not structural: local path first; the public flag only adds a Cloudflare record on top (per-app) plus one-time CHR plumbing.
+Errors should name the operator action, not just the failing implementation detail:
 
-## MVP Definition
+- Good: `refusing to update fintrack: apps/fintrack is not scaffold-managed; run scaffold adopt first or edit GitOps manually`
+- Good: `missing Dockerfile: generate a node-standalone Dockerfile, pass --dockerfile, or abort`
+- Good: `refusing to stage plaintext secret file apps/fintrack/runtime-secret.yaml`
+- Bad: `open runtime-secret.yaml: no such file or directory`
 
-### Launch With (v1)
+## Implications for Roadmap
 
-Matches PROJECT.md's success gate: one real app live end-to-end.
-
-- [ ] k3s VM + ArgoCD with auto-sync/self-heal/prune + ApplicationSet directory generator — the deployment engine
-- [ ] CI template: build → GHCR → write tag to GitOps repo — closes push-to-live loop
-- [ ] Wildcard exposure rail: Mikrotik wildcard DNS → NPM wildcard proxy → k3s ingress; wildcard TLS via Cloudflare DNS-01 — zero-touch per-app URLs
-- [ ] Secrets management (SOPS+age or ESO) — blocks GHCR pulls, tokens, app env
-- [ ] Scaffold CLI v1: render app manifests (with probes + homepage annotations) into GitOps repo + CI workflow into app repo — the one manual step
-- [ ] Shared-service LXCs (Postgres at minimum) reachable from cluster, connection via Secret — T3 apps need a database
-- [ ] Opt-in public exposure (even if v1 = scaffold flag that creates the Cloudflare record; CHR forwarding as one-time setup) — Active requirement
-- [ ] One real T3 app deployed end-to-end — the validation gate
-
-### Add After Validation (v1.x)
-
-- [ ] Per-app DB/user auto-provisioning (movetokube operator or scaffold-time script) — trigger: second app deployed, manual `CREATE DATABASE` gets old immediately
-- [ ] Deployment notifications via argocd-notifications → ntfy/Discord — trigger: first silent failed sync
-- [ ] gethomepage dashboard consuming scaffold annotations — trigger: more than ~3 apps running
-- [ ] `scaffold remove` decommissioning — trigger: first retired app
-- [ ] Renovate on GitOps repo — trigger: first stale-chart security itch
-
-### Future Consideration (v2+)
-
-- [ ] Zitadel OIDC client auto-provisioning (`--auth` flag) — defer: valuable but touches an external API and auth flows; not needed to prove the platform
-- [ ] Opt-in staging overlays + folder-based promotion — defer: solo dev, single env per app is the norm; add when a change actually scares you
-- [ ] Observability stack (Prometheus/Grafana/Loki) — defer: explicit future milestone in PROJECT.md
-- [ ] Preview environments (ApplicationSet PR generator) — defer: revisit only if collaborators appear
-- [ ] Remaining shared-service LXCs (Debezium, NATS+JetStream) wired into scaffold presets — defer: driven by the first app that needs them
-
-## Feature Prioritization Matrix
-
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Push→build→deploy pipeline | HIGH | MEDIUM | P1 |
-| GitOps engine (auto-sync/self-heal/prune) | HIGH | LOW | P1 |
-| Wildcard DNS/proxy/TLS rail | HIGH | LOW–MEDIUM | P1 |
-| Secrets management | HIGH | MEDIUM | P1 |
-| Scaffold CLI v1 | HIGH | MEDIUM | P1 |
-| Postgres LXC + app connectivity | HIGH | LOW | P1 |
-| Opt-in public exposure | MEDIUM | MEDIUM | P1 (required, minimal form) |
-| Per-app DB provisioning | HIGH | MEDIUM | P2 |
-| Deployment notifications | MEDIUM | LOW | P2 |
-| Homepage auto-discovery | MEDIUM | LOW | P2 |
-| App decommissioning | MEDIUM | LOW | P2 |
-| Renovate | MEDIUM | LOW | P2 |
-| Zitadel OIDC auto-provisioning | MEDIUM | HIGH | P3 |
-| Staging overlays / promotion | LOW | MEDIUM | P3 |
-| Preview environments | LOW | HIGH | P3 |
-
-## Competitor Feature Analysis
-
-| Feature | Coolify/Dokploy (self-hosted PaaS) | Reference k3s GitOps homelabs | Our Approach |
-|---------|-------------------------------------|-------------------------------|--------------|
-| App onboarding | Web UI wizard, imperative | Copy folder into repo / hand-write Application | Scaffold CLI → GitOps repo folder; ApplicationSet auto-registers |
-| DNS/TLS | Built-in Traefik + Let's Encrypt per app | ExternalDNS + cert-manager annotations | Wildcard DNS/cert through existing NPM+Mikrotik; Ingress Host routing |
-| Deploy trigger | Webhook / UI button | Git push + auto-sync | Git push only (GitOps as sole interface) |
-| Database per app | One-click DB containers on same host | CloudNativePG in-cluster | External-Postgres operator against shared LXC — state stays outside cluster |
-| Secrets | UI-stored env vars (opaque, not in git) | SOPS / Sealed Secrets / ESO | SOPS or ESO (rebuild-safe) |
-| Visibility | Built-in dashboard | ArgoCD UI + gethomepage | Same: ArgoCD UI + gethomepage annotations |
-| Rollback | UI redeploy of previous image | git revert | git revert + documented flow (no extra machinery) |
+- Build the binary/doctor first because every later feature depends on trustworthy local prerequisites.
+- Convert detection before expanding update flows; otherwise update behavior inherits T3-first assumptions.
+- Establish the runtime config file convention before implementing env/secret flags. The hard design decision is where non-secret env and encrypted secret manifests live and how the Deployment consumes them.
+- Implement non-secret env updates before secret updates. It proves service discovery, YAML mutation, diffing, validation, and GitOps commit flow without SOPS merge complexity.
+- Secret updates need their own verification phase because the failure modes are severe: plaintext leakage, corrupted encrypted YAML, wrong age recipient, and broken Argo CMP decrypt.
 
 ## Sources
 
-- [cterence/homelab-gitops](https://github.com/cterence/homelab-gitops), [loeken/homelab](https://github.com/loeken/homelab), [pablodelarco/kubernetes-homelab](https://github.com/pablodelarco/kubernetes-homelab), [adavarski/homelab](https://github.com/adavarski/homelab) — reference feature sets (MEDIUM confidence, cross-checked)
-- [Argo CD docs: Automated Sync Policy](https://argo-cd.readthedocs.io/en/latest/user-guide/auto_sync/), [ApplicationSet](https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/), [Notifications](https://argo-cd.readthedocs.io/en/stable/operator-manual/notifications/) (MEDIUM — official docs via search)
-- [Securing Local Kubernetes Apps with cert-manager, ExternalDNS, Cloudflare (ITNEXT)](https://itnext.io/securing-local-kubernetes-apps-a-practical-guide-with-cert-manager-externaldns-and-cloudflare-d1ee9342ed83); [Komodor: ExternalDNS + cert-manager](https://komodor.com/blog/simplifying-dns-automation-with-externaldns-and-cert-manager/) (MEDIUM)
-- Secrets comparisons: [Stack Harbor](https://stackharbor.com/en/knowledge-base/gitops-secrets-sealed-sops-external/), [Jonas Hietala: SOPS+age and Sealed Secrets](https://www.jonashietala.se/blog/2026/05/31/sops_age_and_sealed_secrets/), [codedge: SOPS in homelab](https://www.codedge.de/posts/managing-secrets-sops-homelab/) (MEDIUM)
-- [movetokube/postgres-operator (external Postgres)](https://github.com/movetokube/postgres-operator); [CloudNativePG](https://cloudnative-pg.io/) (MEDIUM)
-- [gethomepage Kubernetes service discovery](https://gethomepage.dev/configs/kubernetes/) (MEDIUM — official docs)
-- Environment modeling/promotion: [Codefresh: How to Model GitOps Environments](https://codefresh.io/blog/how-to-model-your-gitops-environments-and-promote-releases-between-them/), [Octopus GitOps environments guide](https://octopus.com/devops/gitops/gitops-environments/), [Loft/vcluster preview envs](https://www.loft.sh/blog/implementing-preview-environments-with-gitops-in-kubernetes) (MEDIUM)
-- Backup norms: [picluster Velero docs](https://picluster.ricsanfre.com/docs/backup/), [k3s backup without complexity (dev.to)](https://dev.to/dwoitzik/k3s-backup-without-the-complexity-velero-garage-s3-on-longhorn-21de) (MEDIUM)
-- Over-engineering retrospectives: [Gabor's Lab Notes: k3s homelab lessons](https://www.gaborl.hu/blog/kubernetes-in-a-homelab-lessons-from-my-k3s-cluster/), [Fernando Cejas: over-engineered homelab](https://fernandocejas.com/blog/engineering/2023-01-06-over-engineered-home-lab-docker-kubernetes/) (LOW — anecdotal, but consistent across sources)
-- Notifications: [argocd-notifications](https://github.com/argoproj-labs/argocd-notifications), [ntfy homelab setup](https://blog.alexsguardian.net/posts/2023/09/12/selfhosting-ntfy) (MEDIUM)
-- Image automation: [Flux Image Automation vs ArgoCD Image Updater](https://oneuptime.com/blog/post/2026-03-13-flux-image-automation-vs-argocd-image-updater/view) (MEDIUM)
+- Local project context: `.planning/PROJECT.md`, `scaffold/README.md`, `docs/runbooks/fintrack-deployment.md`, existing `scaffold/internal/*` contracts (HIGH confidence for project fit).
+- Argo CD docs: Git repository as desired-state source of truth and Kubernetes manifest reconciliation (MEDIUM, official docs via websearch).
+- Flux SOPS guide and Red Hat GitOps secret guidance: encrypted Kubernetes secrets can be safely stored in Git when decrypted by automation at reconciliation time (MEDIUM, verified across sources).
+- Kubernetes Kustomize docs: ConfigMaps and Secrets are standard ways to provide app configuration to Pods from declarative manifests (MEDIUM, official docs via websearch).
+- Docker docs and container security guidance: Dockerfiles should be explicit, maintainable, minimal, and reviewed as app-owned build definitions (MEDIUM, verified across sources).
+- CLI Guidelines: CLIs should support predictable commands, scriptable output, useful errors, and dry-run style inspection for risky operations (MEDIUM, community guidance).
 
----
-*Feature research for: GitOps homelab deployment platform*
-*Researched: 2026-07-07*
