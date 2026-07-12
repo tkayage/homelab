@@ -8,19 +8,18 @@ A reusable deployment platform and workflow for a personal homelab. Apps are bui
 
 Push to git → app is live at `myapp.yourdomain.com` with valid TLS, no manual wiring. Deployment must be a zero-touch, repeatable step for every new project.
 
-## Current Milestone: v1.0 End-to-End Homelab Deployment
+## Current Milestone: v1.1 Scaffolder CLI Service
 
-**Goal:** A git push builds and publishes an app image, deploys it to k3s through GitOps, and exposes it at a valid-TLS hostname without manual wiring.
+**Goal:** Make the homelab scaffolder a dev-server CLI binary that can onboard and update containerized services through the GitOps pipeline.
 
 **Target features:**
-- Provision a single-node k3s VM on the Proxmox MS-01
-- Deploy GitOps and integrate GHCR image builds and pulls
-- Provision a dedicated Postgres LXC and a dedicated Compose VM for Valkey, Debezium, and NATS/JetStream
-- Integrate the existing Zitadel LXC and LAN-accessible shared services
-- Automate local DNS, Nginx Proxy Manager routing, and Cloudflare DNS-01 TLS
-- Support explicit opt-in public exposure through the AWS Mikrotik
-- Provide reusable per-project deployment scaffolding
-- Deploy one real application through the complete pipeline
+- Install and run the scaffolder as a CLI binary on the dev server.
+- Replace T3 detection with Dockerfile-first detection.
+- Offer to generate a Dockerfile when a project does not already have one.
+- Support updating existing services, not just creating new ones.
+- Add or update non-secret environment variables for existing services.
+- Add or update encrypted GitOps secrets for existing services.
+- Commit updates through the normal GitOps repository flow.
 
 ## Requirements
 
@@ -37,8 +36,13 @@ Push to git → app is live at `myapp.yourdomain.com` with valid TLS, no manual 
 
 ### Active
 
-- [ ] Verify MS-01 restart recovery with correct VM/LXC startup ordering during a maintenance window.
-- [ ] Prove a future web validation app through valid-TLS URL, Postgres, and Zitadel integration end to end.
+- [ ] Scaffolder is installed and runnable as a CLI binary on the dev server.
+- [ ] Scaffolder uses Dockerfile-first project detection instead of T3-stack detection.
+- [ ] Scaffolder offers to generate a Dockerfile when one is missing.
+- [ ] Scaffolder can update existing GitOps-managed services.
+- [ ] Scaffolder can add or update non-secret environment variables for existing services.
+- [ ] Scaffolder can add or update encrypted GitOps secrets for existing services.
+- [ ] Scaffolder commits service configuration changes through the normal GitOps repository flow.
 
 ### Out of Scope
 
@@ -66,6 +70,10 @@ Push to git → app is live at `myapp.yourdomain.com` with valid TLS, no manual 
 - Opt-in (public): Cloudflare DNS → AWS Mikrotik public IP → tunnel/forward to home network → NPM → k3s ingress
 
 **Apps:** primarily T3-stack (TypeScript) web apps, but the pipeline should be app-agnostic (anything containerizable).
+
+**Deferred operations:**
+- MS-01 restart recovery should be verified during an operator-approved maintenance window.
+- A future web validation app should prove valid-TLS URL, Postgres, and Zitadel integration end to end.
 
 ## Constraints
 
@@ -107,4 +115,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-12 after completing Phase 8*
+*Last updated: 2026-07-12 after starting v1.1 Scaffolder CLI Service*
