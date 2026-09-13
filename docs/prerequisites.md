@@ -70,3 +70,12 @@ These checks prove the read paths used to gather evidence. Later mutation phases
 ## Completion gate
 
 The three-guest topology, capacity policies, verified untagged LAN attachment, Plan 01-06 topology validator, Plan 01-07 final gate, and Plan 01-08 measured storage-headroom derivation have passed their recorded checks. All deterministic Phase 1 gates pass; Phase 1 must now be re-verified. All Phase 1 activity remains observational and documentation-only: no guest, network, or existing service was provisioned or mutated.
+
+## PBS backups
+
+The homelab has an existing Proxmox Backup Server container backed by a dedicated
+Synology NFS share. Daily guest and host schedules, coverage, restore procedures,
+and deployment files are documented in [PBS backups](backups.md). The current
+identifiers and schedules are recorded under `backups` in the canonical inventory.
+This manually managed backup infrastructure is outside the three OpenTofu-managed
+guest lifecycles above.

@@ -1,0 +1,13 @@
+{
+  "id": "pbs-daily-guests",
+  "node": "proxmox",
+  "storage": "pbs-synology",
+  "all": 1,
+  "mode": "snapshot",
+  "schedule": "02:00",
+  "enabled": 1,
+  "repeat-missed": 1,
+  "notes-template": "{{guestname}}",
+  "prune-backups": "keep-all=1",
+  "comment": "Daily incremental PBS backups of all VMs and LXCs; host timezone Africa/Dar_es_Salaam"
+}

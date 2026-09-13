@@ -1,0 +1,15 @@
+[Unit]
+Description=Back up Proxmox host files and recovery metadata to PBS
+Wants=network-online.target
+After=network-online.target pve-container@102.service
+RequiresMountsFor=/mnt/pbs
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+ExecStart=/usr/local/sbin/proxmox-host-backup
+TimeoutStartSec=infinity

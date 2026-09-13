@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Proxmox host backup at 01:30 EAT
+
+[Timer]
+OnCalendar=*-*-* 01:30:00 Africa/Dar_es_Salaam
+Persistent=true
+AccuracySec=1min
+Unit=proxmox-host-backup.service
+
+[Install]
+WantedBy=timers.target
