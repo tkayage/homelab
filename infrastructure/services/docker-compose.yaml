@@ -72,7 +72,61 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  # Infisical keeps BullMQ job queues in Redis, which require noeviction. The
+  # shared valkey above runs allkeys-lru, so Infisical gets a private instance
+  # that is not published outside the Compose network.
+  infisical-valkey:
+    image: valkey/valkey:8-alpine
+    command: >
+      valkey-server
+      --maxmemory 256mb
+      --maxmemory-policy noeviction
+      --appendonly yes
+    volumes:
+      - infisical-valkey-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  infisical:
+    image: infisical/infisical:v0.167.5
+    # Published for the shared-services EndpointSlice (10.10.30.101:8085);
+    # users reach it through Traefik at secrets.app.hapa.dev (LAN/VPN only).
+    ports:
+      - "8085:8080"
+    environment:
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY:?}
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET:?}
+      DB_CONNECTION_URI: postgres://infisical:${INFISICAL_DB_PASSWORD:?}@10.10.30.100:5432/infisical
+      REDIS_URL: redis://infisical-valkey:6379
+      SITE_URL: https://secrets.app.hapa.dev
+      TELEMETRY_ENABLED: "false"
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+          cpus: "1.0"
+    depends_on:
+      infisical-valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
 volumes:
   valkey-data:
   nats-data:
   debezium-data:
+  infisical-valkey-data:

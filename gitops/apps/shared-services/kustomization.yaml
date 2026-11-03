@@ -12,3 +12,6 @@ resources:
   - endpointslice-debezium.yaml
   - service-zitadel.yaml
   - endpointslice-zitadel.yaml
+  - service-infisical.yaml
+  - endpointslice-infisical.yaml
+  - ingress-infisical.yaml

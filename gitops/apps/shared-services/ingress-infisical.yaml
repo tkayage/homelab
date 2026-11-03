@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: infisical
+  namespace: shared-services
+  annotations:
+    # Secrets manager: reachable on the LAN and WireGuard only.
+    homelab.hapa.dev/public: "false"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: secrets.app.hapa.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: infisical
+                port:
+                  name: http-infisical
